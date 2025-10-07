@@ -1,0 +1,242 @@
+<div class="flex flex-col w-full" style="--material-text-color: white;">
+  <div class="material-section">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <strong class="material-text">Configuration</strong>
+    </div>
+    <div class="input-direction flex flex-row items-center justify-center" style="gap:16px; position: relative;">
+      <div>
+        <div class="material-label">
+          <label for="blade-thickness" style="white-space: nowrap; display: flex; align-items: center;" id="blade-thickness-label">Blade Kerf 
+            <div class="group relative inline-block">
+              <svg viewBox="0 0 416.979 416.979" xml:space="preserve" style="margin-left: 8px; overflow: visible;" fill="#fff" height="15" width="15">
+                <g>
+                  <path d="M356.004,61.156c-81.37-81.47-213.377-81.551-294.848-0.182c-81.47,81.371-81.552,213.379-0.181,294.85
+                     c81.369,81.47,213.378,81.551,294.849,0.181C437.293,274.636,437.375,142.626,356.004,61.156z M237.6,340.786
+                     c0,3.217-2.607,5.822-5.822,5.822h-46.576c-3.215,0-5.822-2.605-5.822-5.822V167.885c0-3.217,2.607-5.822,5.822-5.822h46.576
+                     c3.215,0,5.822,2.604,5.822,5.822V340.786z M208.49,137.901c-18.618,0-33.766-15.146-33.766-33.765
+                     c0-18.617,15.147-33.766,33.766-33.766c18.619,0,33.766,15.148,33.766,33.766C242.256,122.755,227.107,137.901,208.49,137.901z"></path>
+                </g>
+              </svg>
+              <span class="invisible group-hover:visible">
+                The width of the cut made by your blade. The standard at C&W Berry is 4mm.
+              </span>
+            </div>
+          </label>
+        </div>
+        <div class="material-input-with-select">
+          <div class="input-wrapper">
+            <input class="material-input" type="number" id="blade-thickness" name="blade-thickness" value="4" step="any">
+            <span class="unit">mm</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="material-label">
+          <label for="blade-offset" style="white-space: nowrap; display: flex; align-items: center;" id="blade-offset-label">Edge Offset 
+            <div class="group relative inline-block">
+              <svg viewBox="0 0 416.979 416.979" xml:space="preserve" style="margin-left: 8px; overflow: visible;" fill="#fff" height="15" width="15">
+                <g>
+                  <path d="M356.004,61.156c-81.37-81.47-213.377-81.551-294.848-0.182c-81.47,81.371-81.552,213.379-0.181,294.85
+                     c81.369,81.47,213.378,81.551,294.849,0.181C437.293,274.636,437.375,142.626,356.004,61.156z M237.6,340.786
+                     c0,3.217-2.607,5.822-5.822,5.822h-46.576c-3.215,0-5.822-2.605-5.822-5.822V167.885c0-3.217,2.607-5.822,5.822-5.822h46.576
+                     c3.215,0,5.822,2.604,5.822,5.822V340.786z M208.49,137.901c-18.618,0-33.766-15.146-33.766-33.765
+                     c0-18.617,15.147-33.766,33.766-33.766c18.619,0,33.766,15.148,33.766,33.766C242.256,122.755,227.107,137.901,208.49,137.901z"></path>
+                </g>
+              </svg>
+              <span class="invisible group-hover:visible">
+                The margin from the sheet edge to the start of your cut
+              </span>
+            </div>
+          </label>
+        </div>
+        <div class="material-input-with-select">
+          <div class="input-wrapper">
+            <input class="material-input" type="number" id="blade-offset" name="blade-offset" value="0" step="any">
+            <span class="unit">mm</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="material-label">
+          <label for="unit-type">Unit</label>
+        </div>
+        <div class="material-input-with-select">
+          <div class="input-wrapper">
+            <select class="material-input" id="unit-type">
+              <option value="mm" selected>mm</option>
+              <option value="in">inches</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>    
+  </div>
+  <hr class="my-8 material-text" style="border-color: white;">
+  <div class="material-section">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: nowrap;">
+      <span style="color: white; display: flex; align-items: center; gap: 8px; white-space: nowrap;">
+        <strong class="material-text">Available Sheets</strong> 
+        <div class="group relative inline-block">
+          <svg viewBox="0 0 416.979 416.979" xml:space="preserve" style="overflow: visible;" fill="#fff" height="15" width="15">
+            <g>
+              <path d="M356.004,61.156c-81.37-81.47-213.377-81.551-294.848-0.182c-81.47,81.371-81.552,213.379-0.181,294.85
+                 c81.369,81.47,213.378,81.551,294.849,0.181C437.293,274.636,437.375,142.626,356.004,61.156z M237.6,340.786
+                 c0,3.217-2.607,5.822-5.822,5.822h-46.576c-3.215,0-5.822-2.605-5.822-5.822V167.885c0-3.217,2.607-5.822,5.822-5.822h46.576
+                 c3.215,0,5.822,2.604,5.822,5.822V340.786z M208.49,137.901c-18.618,0-33.766-15.146-33.766-33.765
+                 c0-18.617,15.147-33.766,33.766-33.766c18.619,0,33.766,15.148,33.766,33.766C242.256,122.755,227.107,137.901,208.49,137.901z"></path>
+            </g>
+          </svg>
+          <span class="invisible group-hover:visible">
+            The sheet sizes you currently have
+          </span>
+        </div>
+      </span>
+      <button id="add-available" class="material-input" style="width:auto; display: flex; align-items: center; gap: 12px; font-size: 0.75rem; color: white; font-weight: bold;">
+        Add Sheet
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" style="overflow: visible;">
+          <circle cx="10" cy="10" r="10" fill="white"></circle>
+          <line x1="10" y1="4.5" x2="10" y2="15.5" stroke="green" stroke-width="1.5" stroke-linecap="round"></line>
+          <line x1="4.5" y1="10" x2="15.5" y2="10" stroke="green" stroke-width="1.5" stroke-linecap="round"></line>
+        </svg>
+      </button>
+    </div>
+    <div id="available-rows">
+      <div class="flex flex-row available-row" style="gap: 16px; align-items: center; position: relative;">
+        <div>
+          <div class="material-label">
+            <label>Length</label>
+          </div>
+          <div class="material-input-with-select">
+            <div class="input-wrapper">
+              <input class="material-input avail-w" type="number" step="any" value="2440">
+              <span class="unit">mm</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="material-label">
+            <label>Width</label>
+          </div>
+          <div class="material-input-with-select">
+            <div class="input-wrapper">
+              <input class="material-input avail-h" type="number" step="any" value="1220">
+              <span class="unit">mm</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="material-label">
+            <label>Quantity</label>
+          </div>
+          <div class="material-input-with-select">
+            <div class="input-wrapper">
+              <input class="material-input avail-q" type="number" step="1" value="1">
+              <span style="padding: 0 .75rem;">units</span>
+            </div>
+          </div>
+        </div>
+        <button disabled="" type="button" class="material-input remove-row" style="width:auto;font-size:1.5rem;color:white;opacity:0;">x</button>
+      </div>
+    </div>
+  </div>
+  <hr class="my-8 material-text" style="border-color: white;">
+  <div class="material-section">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: nowrap;">
+      <span style="color: white; display: flex; align-items: center; gap: 8px; white-space: nowrap;">
+        <strong class="material-text">Required Sheets</strong> 
+        <div class="group relative inline-block">
+          <svg viewBox="0 0 416.979 416.979" xml:space="preserve" style="overflow: visible;" fill="#fff" height="15" width="15">
+            <g>
+              <path d="M356.004,61.156c-81.37-81.47-213.377-81.551-294.848-0.182c-81.47,81.371-81.552,213.379-0.181,294.85
+                 c81.369,81.47,213.378,81.551,294.849,0.181C437.293,274.636,437.375,142.626,356.004,61.156z M237.6,340.786
+                 c0,3.217-2.607,5.822-5.822,5.822h-46.576c-3.215,0-5.822-2.605-5.822-5.822V167.885c0-3.217,2.607-5.822,5.822-5.822h46.576
+                 c3.215,0,5.822,2.604,5.822,5.822V340.786z M208.49,137.901c-18.618,0-33.766-15.146-33.766-33.765
+                 c0-18.617,15.147-33.766,33.766-33.766c18.619,0,33.766,15.148,33.766,33.766C242.256,122.755,227.107,137.901,208.49,137.901z"></path>
+            </g>
+          </svg>
+          <span class="invisible group-hover:visible">
+            The sheet sizes you require
+          </span>
+        </div>
+      </span>
+      <button id="add-required" class="material-input" style="width:auto; display: flex; align-items: center; gap: 12px; font-size: 0.75rem; color: white; font-weight: bold;">
+        Add Sheet
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" style="overflow: visible;">
+          <circle cx="10" cy="10" r="10" fill="white"></circle>
+          <line x1="10" y1="4.5" x2="10" y2="15.5" stroke="green" stroke-width="1.5" stroke-linecap="round"></line>
+          <line x1="4.5" y1="10" x2="15.5" y2="10" stroke="green" stroke-width="1.5" stroke-linecap="round"></line>
+        </svg>
+      </button>
+    </div>
+    <div id="required-rows">
+      <div class="flex flex-row required-row" style="gap: 16px; align-items: center;">
+        <div>
+          <div class="material-label">
+            <label>Length</label>
+          </div>
+          <div class="material-input-with-select">
+            <div class="input-wrapper">
+              <input class="material-input req-w" type="number" step="any" value="">
+              <span class="unit">mm</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="material-label">
+            <label>Width</label>
+          </div>
+          <div class="material-input-with-select">
+            <div class="input-wrapper">
+              <input class="material-input req-h" type="number" step="any" value="">
+              <span class="unit">mm</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="material-label">
+            <label>Quantity</label>
+          </div>
+          <div class="material-input-with-select">
+            <div class="input-wrapper">
+              <input class="material-input req-q" type="number" step="1" value="1">
+              <span style="padding: 0 .75rem;">units</span>
+            </div>
+          </div>
+        </div>
+        <button disabled="" type="button" class="material-input remove-row" style="width:auto;font-size:1.5rem;color:white;opacity:0;">x</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="color:white; font-size: 15px; margin: 15px 0 0;">Please note, the results generated from this calculator are intended as a guide only.</div>
+
+<div id="warning-message" style="display:none; background:#fff; color:black; padding:0.8rem 1rem; border-radius:10px; margin:1rem 0; font-size: 15px;"></div>
+
+
+<div class="canvas-keys">
+  <canvas id="canvas"></canvas>
+  <div id="sheet-previews" class="sheet-previews"></div>
+  <div id="keys">
+    <div style="display:flex;flex-direction:column;gap:4px;"></div>
+  </div>
+</div>
+
+<span id="results"></span>
+
+
+<div id="sheet-materials-carousel" style="margin: 35px 0 50px;">
+    <div class="carousel-container">
+        <div class="flex flex-row justify-between mb-4 items-center">
+            <p class="text-2xl font-bold text-white" style="margin-right: 1rem;">Suggested Products</p>
+            <div class="flex flex-row gap-4">
+                <button class="prevBtn w-10 h-10 rounded-full flex items-center justify-center"
+                    style="background-color: #fff; color: #009845;">&#10094;</button>
+                <button class="nextBtn w-10 h-10 bg-green rounded-full flex items-center justify-center"
+                    style="background-color: #fff; color: #009845;">&#10095;</button>
+            </div>
+        </div>
+        <div class="carousel">
+        </div>
+    </div>
+</div>
