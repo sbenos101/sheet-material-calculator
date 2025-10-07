@@ -1,605 +1,4 @@
 <script>
-function solveCSP(available, required, opts = {}) {
-  const kerf = Math.max(0, Number.isFinite(opts.kerf) ? opts.kerf : 0);
-  const GHOST_KERF = kerf;
-  const userEdge = Math.max(0, Number.isFinite(opts.edgeClearance) ? opts.edgeClearance : 0);
-  const effectiveEdge = userEdge;
-  const allowRotate = opts.allowRotate ?? true;
-  const unitName = opts.unitName ?? 'mm';
-
-  const EPS = 1e-5;
-
-  const items = [];
-  const reqTotals = new Map();
-  const counters = new Map();
-  for (const r of required) {
-    const q = Math.max(1, r.quantity | 0);
-    const base = r.label ?? `${r.width}x${r.height}`;
-    const start = counters.get(base) ?? 1;
-    for (let i = 0; i < q; i++) {
-      const idx = start + i;
-      const label = q > 1 ? `${base} #${idx}` : base;
-      items.push({ w: r.width, h: r.height, base, label });
-    }
-    counters.set(base, start + q);
-    reqTotals.set(base, (reqTotals.get(base) || 0) + q);
-  }
-
-  function innerDims(sheet) {
-    return {
-      x0: effectiveEdge,
-      y0: effectiveEdge,
-      W: Math.max(0, sheet.width - 2 * effectiveEdge),
-      H: Math.max(0, sheet.height - 2 * effectiveEdge)
-    };
-  }
-
-  const sheetDims = available.map(sheet => innerDims(sheet));
-
-  const packItems = items.map(it => {
-    let kerfW = GHOST_KERF;
-    let kerfH = GHOST_KERF;
-
-    for (const { W, H } of sheetDims) {
-      if (Math.abs(it.w - W) <= EPS) kerfW = 0;
-      if (Math.abs(it.h - H) <= EPS) kerfH = 0;
-      if (allowRotate) {
-        if (Math.abs(it.w - H) <= EPS) kerfW = 0;
-        if (Math.abs(it.h - W) <= EPS) kerfH = 0;
-      }
-    }
-
-    return {
-      ...it,
-      w: it.w + kerfW,
-      h: it.h + kerfH,
-      origW: it.w,
-      origH: it.h
-    };
-  });
-
-  function scoreFragmentation(freeRects) {
-    let perim = 0;
-    for (const fr of freeRects) perim += 2 * (fr.w + fr.h);
-    return freeRects.length * 100000 + perim;
-  }
-
-  class MaxRectsBin {
-    constructor(width, height) {
-      this.W = width; this.H = height;
-      const { x0, y0, W: innerW, H: innerH } = innerDims({ width, height });
-      const kerf = GHOST_KERF;
-      const halfKerf = kerf / 2;
-      const expX0 = x0 - halfKerf;
-      const expY0 = y0 - halfKerf;
-      const expW = innerW + kerf;
-      const expH = innerH + kerf;
-      this.edge = { x0: expX0, y0: expY0, W: expW, H: expH };
-      this.free = (expW > 0 && expH > 0) ? [{ x: expX0, y: expY0, w: expW, h: expH }] : [];
-      this.used = [];
-      this.gu = [];
-      this.EPS = EPS;
-    }
-    _contactScore(x, y, w, h) {
-      let score = 0;
-      for (const u of this.gu) {
-        if (Math.abs(u.x + u.w - x) <= this.EPS && !(u.y >= y + h || y >= u.y + u.h)) score += h;
-        if (Math.abs(x + w - u.x) <= this.EPS && !(u.y >= y + h || y >= u.y + u.h)) score += h;
-        if (Math.abs(u.y + u.h - y) <= this.EPS && !(u.x >= x + w || x >= u.x + u.w)) score += w;
-        if (Math.abs(y + h - u.y) <= this.EPS && !(u.x >= x + w || x >= u.x + u.w)) score += w;
-      }
-      if (Math.abs(x - this.edge.x0) <= this.EPS) score += h;
-      if (Math.abs(y - this.edge.y0) <= this.EPS) score += w;
-      if (Math.abs(this.edge.x0 + this.edge.W - (x + w)) <= this.EPS) score += h;
-      if (Math.abs(this.edge.y0 + this.edge.H - (y + h)) <= this.EPS) score += w;
-      return score;
-    }
-    _findNode(w, h) {
-      let best = null;
-      const consider = (fr, rw, rh, rotated) => {
-        if (rw > fr.w + this.EPS || rh > fr.h + this.EPS) return;
-        const x = fr.x, y = fr.y;
-        const tuple = [-this._contactScore(x, y, rw, rh), (fr.w * fr.h) - (rw * rh), y, x];
-        const cand = { x, y, w: rw, h: rh, rotated, tuple };
-        if (!best) { best = cand; return; }
-        const t = cand.tuple, u = best.tuple;
-        for (let i = 0; i < t.length; i++) {
-          if (t[i] < u[i] - this.EPS) { best = cand; return; }
-          if (t[i] > u[i] + this.EPS) return;
-        }
-      };
-      for (const fr of this.free) {
-        consider(fr, w, h, false);
-        if (allowRotate) consider(fr, h, w, true);
-      }
-      return best;
-    }
-    insert(wInfl, hInfl, label, base, origW, origH) {
-      const node = this._findNode(wInfl, hInfl);
-      if (!node) return false;
-      this._place(node);
-      const gx = node.x, gy = node.y, gw = node.w, gh = node.h;
-      this.gu.push({ x: gx, y: gy, w: gw, h: gh, base });
-      const halfKerf = GHOST_KERF / 2;
-      const px = gx + halfKerf;
-      const py = gy + halfKerf;
-      const pw = node.rotated ? origH : origW;
-      const ph = node.rotated ? origW : origH;
-      const originalW = pw;
-      const originalH = ph;
-      this.used.push({ x: px, y: py, w: pw, h: ph, label, base, rotated: !!node.rotated, gx, gy, gw, gh, originalW, originalH });
-      return true;
-    }
-    _place(used) {
-      let i = 0;
-      while (i < this.free.length) {
-        const fr = this.free[i];
-        if (!this._splitFreeNode(fr, used)) i++;
-        else this.free.splice(i, 1);
-      }
-      this._pruneFreeList();
-      this._mergeFreeList();
-    }
-    _splitFreeNode(fr, used) {
-      const x1 = used.x, y1 = used.y, x2 = used.x + used.w, y2 = used.y + used.h;
-      const fx1 = fr.x, fy1 = fr.y, fx2 = fr.x + fr.w, fy2 = fr.y + fr.h;
-      if (x2 <= fx1 + this.EPS || x1 >= fx2 - this.EPS || y2 <= fy1 + this.EPS || y1 >= fy2 - this.EPS) return false;
-      if (x1 > fx1 + this.EPS) this.free.push({ x: fx1, y: fy1, w: x1 - fx1, h: fr.h });
-      if (x2 < fx2 - this.EPS) this.free.push({ x: x2, y: fy1, w: fx2 - x2, h: fr.h });
-      const ox1 = Math.max(fx1, x1), ox2 = Math.min(fx2, x2);
-      if (y1 > fy1 + this.EPS) this.free.push({ x: ox1, y: fy1, w: Math.max(0, ox2 - ox1), h: y1 - fy1 });
-      if (y2 < fy2 - this.EPS) this.free.push({ x: ox1, y: y2, w: Math.max(0, ox2 - ox1), h: fy2 - y2 });
-      return true;
-    }
-    _pruneFreeList() {
-      this.free = this.free.filter(r => r.w > this.EPS && r.h > this.EPS);
-      for (let i = 0; i < this.free.length; i++) {
-        for (let j = i + 1; j < this.free.length; j++) {
-          const a = this.free[i], b = this.free[j];
-          if (!a || !b) continue;
-          if (a.x >= b.x - this.EPS && a.y >= b.y - this.EPS &&
-              a.x + a.w <= b.x + b.w + this.EPS &&
-              a.y + a.h <= b.y + b.h + this.EPS) { this.free.splice(i, 1); i--; break; }
-          if (b.x >= a.x - this.EPS && b.y >= a.y - this.EPS &&
-              b.x + b.w <= a.x + a.w + this.EPS &&
-              b.y + b.h <= a.y + b.h + this.EPS) { this.free.splice(j, 1); j--; }
-        }
-      }
-    }
-    _mergeFreeList() {
-      let merged = true;
-      while (merged) {
-        merged = false;
-        outer: for (let i = 0; i < this.free.length; i++) {
-          for (let j = i + 1; j < this.free.length; j++) {
-            const a = this.free[i], b = this.free[j];
-            if (Math.abs(a.y - b.y) <= this.EPS && Math.abs(a.h - b.h) <= this.EPS) {
-              if (Math.abs(a.x + a.w - b.x) <= this.EPS) { this.free[i] = { x: a.x, y: a.y, w: a.w + b.w, h: a.h }; this.free.splice(j, 1); merged = true; break outer; }
-              if (Math.abs(b.x + b.w - a.x) <= this.EPS) { this.free[i] = { x: b.x, y: b.y, w: b.w + a.w, h: a.h }; this.free.splice(j, 1); merged = true; break outer; }
-            }
-            if (Math.abs(a.x - b.x) <= this.EPS && Math.abs(a.w - b.w) <= this.EPS) {
-              if (Math.abs(a.y + a.h - b.y) <= this.EPS) { this.free[i] = { x: a.x, y: a.y, w: a.w, h: a.h + b.h }; this.free.splice(j, 1); merged = true; break outer; }
-              if (Math.abs(b.y + b.h - a.y) <= this.EPS) { this.free[i] = { x: b.x, y: b.y, w: a.w, h: b.h + a.h }; this.free.splice(j, 1); merged = true; break outer; }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  function packMaxRects(basePool, itemsList) {
-  function chooseSheet(poolArr, it) {
-    let best = -1, bestArea = Infinity;
-    for (let i = 0; i < poolArr.length; i++) {
-      const s = poolArr[i];
-      const { W, H } = innerDims(s);
-      if ((it.w <= W && it.h <= H) || (allowRotate && it.h <= W && it.w <= H)) {
-        const area = W * H;
-        if (area < bestArea) { bestArea = area; best = i; }
-      }
-    }
-    return best;
-  }
-
-  const sortStrategies = [
-    (a, b) => (b.w * b.h) - (a.w * a.h) || Math.max(b.w, b.h) - Math.max(a.w, a.h),
-    (a, b) => (b.w + b.h) - (a.w + a.h) || (b.w * b.h) - (a.w * a.h),
-    (a, b) => b.w - a.w || b.h - a.h
-  ];
-
-  let bestResult = null;
-  let minUnplaced = Infinity;
-
-  for (const sortFn of sortStrategies) {
-    const pool = basePool.map(p => ({ ...p }));
-    const bins = [];
-    const L = itemsList.map(o => ({ ...o }));
-    L.sort(sortFn);
-    const unplaced = [];
-
-    for (const it of L) {
-      let placed = false;
-      for (const bin of bins) {
-        if (bin.insert(it.w, it.h, it.label, it.base, it.origW, it.origH)) {
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        let idx = chooseSheet(pool, it);
-        if (idx < 0 && pool.length > 0) {
-     
-          idx = pool.reduce((best, s, i) => {
-            const { W, H } = innerDims(s);
-            const area = W * H;
-            return area > (innerDims(pool[best] || { width: 0, height: 0 }).W * innerDims(pool[best] || { width: 0, height: 0 }).H) ? i : best;
-          }, 0);
-        }
-        if (idx >= 0) {
-          const s = pool.splice(idx, 1)[0];
-          const bin = new MaxRectsBin(s.width, s.height);
-          const ok = bin.insert(it.w, it.h, it.label, it.base, it.origW, it.origH);
-          if (!ok) {
-            unplaced.push(it);
-            console.warn(`Failed to place ${it.label} (${it.w}x${it.h}) on sheet ${s.width}x${s.height}`);
-          } else {
-            bins.push(bin);
-          }
-        } else {
-          unplaced.push(it);
-          console.warn(`No suitable sheet for ${it.label} (${it.w}x${it.h})`);
-        }
-      }
-    }
-
-
-    if (unplaced.length < minUnplaced) {
-      minUnplaced = unplaced.length;
-      let nextId = 1;
-      const sheets = bins.map(b => ({ id: nextId++, width: b.W, height: b.H, placements: b.used }));
-      const innerA = (w, h) => Math.max(0, w - 2 * effectiveEdge) * Math.max(0, h - 2 * effectiveEdge);
-      let usedInner = 0, usedArea = 0;
-      for (const sh of sheets) {
-        const fill = sh.placements.reduce((a, p) => a + p.w * p.h, 0);
-        if (fill > 0) usedInner += innerA(sh.width, sh.height);
-        usedArea += fill;
-      }
-      const frag = bins.reduce((acc, b) => acc + scoreFragmentation(b.free), 0);
-      const placedByBase = new Map();
-      for (const sh of sheets) for (const p of sh.placements) placedByBase.set(p.base, (placedByBase.get(p.base) || 0) + 1);
-      bestResult = {
-        sheets,
-        waste: Math.max(0, usedInner - usedArea),
-        unplaced,
-        frag,
-        placedByBase: Array.from(placedByBase, ([base, qty]) => ({ base, qty }))
-      };
-    }
-
-    if (minUnplaced === 0) break; 
-  }
-
-  if (bestResult.unplaced.length > 0 && basePool.length > bestResult.sheets.length) {
-    console.warn(`Retrying with additional sheet due to ${bestResult.unplaced.length} unplaced items`);
-    const newPool = basePool.map(p => ({ ...p }));
-    const newItems = bestResult.unplaced.map(o => ({ ...o }));
-    const additionalResult = packMaxRects(newPool, newItems);
-    bestResult.sheets.push(...additionalResult.sheets);
-    bestResult.unplaced = additionalResult.unplaced;
-    bestResult.waste += additionalResult.waste;
-    bestResult.frag += additionalResult.frag;
-    const placedByBase = new Map(bestResult.placedByBase.map(({ base, qty }) => [base, qty]));
-    for (const { base, qty } of additionalResult.placedByBase) {
-      placedByBase.set(base, (placedByBase.get(base) || 0) + qty);
-    }
-    bestResult.placedByBase = Array.from(placedByBase, ([base, qty]) => ({ base, qty }));
-  }
-
-  if (bestResult.unplaced.length > 0) {
-    console.warn(`Final unplaced items:`, bestResult.unplaced);
-  }
-
-  return bestResult;
-}
-
-  const basePool = [];
-  available.forEach((s) => {
-    const q = Math.max(1, s.quantity | 0);
-    for (let k = 0; k < q; k++) basePool.push({ width: s.width, height: s.height });
-  });
-
-  const packed = packMaxRects(basePool, packItems);
-
-  packed.sheets.sort((a, b) => (b.placements.length > 0) - (a.placements.length > 0));
-
-  return {
-    unitName,
-    sheets: packed.sheets,
-    meta: {
-      kerf,
-      edgeClearance: effectiveEdge,
-      allowRotate,
-      requiredTotals: Array.from(reqTotals, ([base, qty]) => ({ base, qty })),
-      placedByBase: packed.placedByBase,
-      unplaced: (packed.unplaced || []).map(u => ({
-        w: Math.max(0, u.origW),
-        h: Math.max(0, u.origH),
-        label: u.label,
-        base: u.base
-      }))
-    }
-  };
-}
-
-function drawSolution(ctx, width, height, solution, opts = {}) {
-  const margin = opts.margin ?? 20;
-  const gutter = opts.gutter ?? 20;
-  const flipY = opts.flipY ?? true;
-  const showGrid = opts.showGrid ?? false;
-  const gridTargetPx = opts.gridTargetPx ?? 12;
-  const updateKeys = opts.updateKeys ?? true;
-  const annotateSheetDims = !!opts.annotateSheetDims;
-
-  const required = Array.isArray(opts.required) ? opts.required : [];
-  const counts = new Map();
-  const baseLabels = [];
-
-  if (required.length) {
-    for (const r of required) {
-      const base = r.label ?? `${r.width}x${r.height}`;
-      if (!counts.has(base)) baseLabels.push(base);
-      counts.set(base, (counts.get(base) || 0) + Math.max(1, r.quantity | 0));
-    }
-  } else {
-    for (const s of solution.sheets) for (const p of s.placements) {
-      const base = (p.label || '').split(' #')[0];
-      if (!counts.has(base)) baseLabels.push(base);
-      counts.set(base, (counts.get(base) || 0) + 1);
-    }
-  }
-
-  const labelColors = new Map();
-  for (let i = 0; i < baseLabels.length; i++) {
-    const hue = (i * 137.508) % 360;
-    labelColors.set(baseLabels[i], `hsl(${hue} 65% 55%)`);
-  }
-
-  const keysDiv = document.getElementById('keys');
-  if (keysDiv && updateKeys) {
-    keysDiv.innerHTML = '';
-    const col = document.createElement('div');
-    col.style.display = 'flex';
-    col.style.flexDirection = 'column';
-    col.style.gap = '4px';
-    col.style.color = 'white';
-    for (const label of baseLabels) {
-      const color = labelColors.get(label);
-      const row = document.createElement('div');
-      row.style.backgroundColor = color;
-      row.style.padding = '6px';
-      row.style.borderRadius = '4px';
-      row.style.color = 'white !important';
-      row.innerHTML = `<strong>${label}</strong> (x${counts.get(label) || 0})`;
-      col.appendChild(row);
-    }
-    keysDiv.appendChild(col);
-  }
-
-  const sheetBoxes = [];
-  const drawableW = width - 2 * margin;
-  const drawableH = height - 2 * margin;
-  for (const sheet of solution.sheets) {
-    const sx = drawableW / sheet.width;
-    const sy = drawableH / sheet.height;
-    const scale = Math.min(sx, sy);
-    sheetBoxes.push({ sheet, wPx: sheet.width * scale, hPx: sheet.height * scale, scale });
-  }
-  const totalH = sheetBoxes.reduce((a, b, i) => a + b.hPx + (i ? gutter : 0), 0);
-  const uniformScale = totalH + 2 * margin > height
-    ? (height - 2 * margin - (sheetBoxes.length - 1) * gutter) /
-      sheetBoxes.reduce((a, b) => a + b.hPx, 0)
-    : 1;
-
-  ctx.lineWidth = 1;
-  ctx.font = '12px';
-
-  let capturedGrid = false;
-  let cursorY = margin;
-
-  for (const box of sheetBoxes) {
-    const scale = box.scale * uniformScale;
-    const drawW = box.sheet.width * scale;
-    const drawH = box.sheet.height * scale;
-    const originX = (width - drawW) / 2;
-    const originY = cursorY;
-
-    if (!capturedGrid) {
-      window.__LAST_GRID_META__ = {
-        cols: box.sheet.width,
-        rows: box.sheet.height,
-        scale,
-        boardW: drawW,
-        boardH: drawH,
-      };
-      capturedGrid = true;
-    }
-
-    if (showGrid) {
-      const nice = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
-      let minor = nice[0];
-      for (const n of nice) { if (n * scale >= gridTargetPx) { minor = n; break; } }
-      const maxLines = 2000;
-      const est = (box.sheet.width / minor) + (box.sheet.height / minor);
-      if (est > maxLines) { const f = Math.ceil(est / maxLines); minor *= f; }
-      const major = minor * (minor >= 50 ? 2 : 5);
-
-      ctx.save();
-      ctx.beginPath();
-      for (let gx = 0; gx <= box.sheet.width + 1e-9; gx += minor) {
-        const x = originX + gx * scale;
-        ctx.moveTo(x, originY);
-        ctx.lineTo(x, originY + drawH);
-      }
-      for (let gy = 0; gy <= box.sheet.height + 1e-9; gy += minor) {
-        const y = originY + gy * scale;
-        ctx.moveTo(originX, y);
-        ctx.lineTo(originX + drawW, y);
-      }
-      ctx.strokeStyle = '#e0e0e0';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      ctx.beginPath();
-      for (let gx = 0; gx <= box.sheet.width + 1e-9; gx += major) {
-        const x = originX + gx * scale;
-        ctx.moveTo(x, originY);
-        ctx.lineTo(x, originY + drawH);
-      }
-      for (let gy = 0; gy <= box.sheet.height + 1e-9; gy += major) {
-        const y = originY + gy * scale;
-        ctx.moveTo(originX, y);
-        ctx.lineTo(originX + drawW, y);
-      }
-      ctx.strokeStyle = '#bdbdbd';
-      ctx.lineWidth = 1.25;
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    ctx.save();
-    ctx.strokeStyle = '#111';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(originX, originY, drawW, drawH);
-    ctx.restore();
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(originX, originY, drawW, drawH);
-    ctx.clip();
-
-    for (const p of box.sheet.placements) {
-      const px = originX + p.x * scale;
-      const py = flipY ? originY + (box.sheet.height - p.y - p.h) * scale : originY + p.y * scale;
-      const pw = p.w * scale;
-      const ph = p.h * scale;
-      const base = (p.label || '').split(' #')[0];
-
-      ctx.fillStyle = labelColors.get(base) || '#6fa8dc';
-      ctx.fillRect(px, py, pw, ph);
-
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(px, py, pw, ph);
-
-      const wText = (typeof fmtLenFromMM === 'function') ? `${fmtLenFromMM(p.w)}` : `${p.w}`;
-      const hText = (typeof fmtLenFromMM === 'function') ? `${fmtLenFromMM(p.h)}` : `${p.h}`;
-
-      const fontPx = Math.max(10, Math.min(14, Math.floor(Math.min(pw, ph) / 4)));
-      ctx.save();
-      ctx.fillStyle = '#000';
-      ctx.font = `${fontPx}px`;
-
-      if (pw >= 24 && updateKeys) {
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(255,255,255,.8)';
-        ctx.strokeText(wText, px + pw / 2, py + 2);
-        ctx.fillText(wText, px + pw / 2, py + 2);
-      }
-
-      if (ph >= 24 && updateKeys) {
-        ctx.save();
-        ctx.translate(px + pw - 6, py + ph / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(255,255,255,.8)';
-        ctx.strokeText(hText, 0, 0);
-        ctx.fillText(hText, 0, 0);
-        ctx.restore();
-      }
-      ctx.restore();
-    }
-    ctx.restore();
-
-    if (annotateSheetDims) {
-      const u = unitSuffix?.() || '';
-      const widthLabel  = `${fmtLenFromMM(box.sheet.width)} ${u}`;
-      const heightLabel = `${fmtLenFromMM(box.sheet.height)} ${u}`;
-
-      ctx.save();
-      ctx.fillStyle = '#222';
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.lineWidth = 3;
-      ctx.font = 'bold 12px';
-
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      const topY = Math.max(0, originY - 6);
-      ctx.strokeText(widthLabel, originX + drawW / 2, topY);
-      ctx.fillText(widthLabel, originX + drawW / 2, topY);
-
-      ctx.save();
-      ctx.translate(originX + drawW + 6, originY + drawH / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.strokeText(heightLabel, 0, 0);
-      ctx.fillText(heightLabel, 0, 0);
-      ctx.restore();
-
-      ctx.restore();
-    }
-
-    cursorY += drawH + gutter;
-  }
-}
-
-function ensureHiDPIFor(cnv) {
-  const rect = cnv.getBoundingClientRect();
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const displayWidth = Math.floor(rect.width * dpr);
-  const displayHeight = Math.floor(rect.height * dpr);
-  if (cnv.width !== displayWidth || cnv.height !== displayHeight) {
-    cnv.width = displayWidth;
-    cnv.height = displayHeight;
-  }
-  const ctx = cnv.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return { ctx, cssW: Math.floor(rect.width), cssH: Math.floor(rect.height), dpr };
-}
-
-function clearCanvas(ctx) {
-  const c = ctx.canvas;
-  ctx.save();
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.clearRect(0, 0, c.width, c.height);
-  ctx.restore();
-}
-
-function drawSingleSheet(ctx, width, height, fullSolution, sheet, opts = {}) {
-  const one = { sheets: [sheet], unitName: fullSolution.unitName };
-  drawSolution(ctx, width, height, one, opts);
-}
-
-function makeBlankSolutionFromAvailable(available, unit = 'mm') {
-  let id = 1;
-  const sheets = [];
-  for (const s of available) {
-    const q = Math.max(1, s.quantity | 0);
-    for (let i = 0; i < q; i++) {
-      sheets.push({ id: id++, width: s.width, height: s.height, placements: [] });
-    }
-  }
-  return { sheets, unitName: unit, meta: { kerf: 0, edgeClearance: 0, allowRotate: true, requiredTotals: [], placedByBase: [], unplaced: [] } };
-}
-
-function fmt(n, dp = 2) {
-  if (!Number.isFinite(n)) return String(n);
-  return Number(n.toFixed(dp));
-}
 
 function getSelectedUnit() { return 'mm'; }
 
@@ -624,209 +23,6 @@ function unitAreaSuffix() {
 function updateUnitsUIBadges() {
   const u = unitSuffix();
   document.querySelectorAll('.unit').forEach(el => { el.textContent = u; });
-}
-
-function computeStats(solution, available, required, metaNote = '') {
-  const res = {
-    timestamp: new Date().toISOString(),
-    unit: solution.unitName || 'mm',
-    kerf: solution.meta?.kerf ?? null,
-    edgeClearance: solution.meta?.edgeClearance ?? null,
-    allowRotate: solution.meta?.allowRotate ?? null,
-    sheets_available: available.reduce((sum, s) => sum + Math.max(1, s.quantity | 0), 0),
-    sheets_total: solution.sheets.length,
-    sheets_used_nonempty: solution.sheets.filter(s => s.placements.length > 0).length,
-    
-    sheet_ids: solution.sheets.map(s => s.id),
-    totals: {},
-    by_label: [],
-    per_sheet: [],
-    notes: metaNote ? [metaNote] : []
-  };
-
-  const innerArea = (w, h, edge) => Math.max(0, (w - 2 * edge)) * Math.max(0, (h - 2 * edge));
-
-  let sumSheetArea = 0, sumInnerArea = 0, sumUsedArea = 0, sumPlacements = 0;
-  for (const s of solution.sheets) {
-    const sheetArea = s.width * s.height;
-    const innerA = innerArea(s.width, s.height, res.edgeClearance || 0);
-    const usedA = s.placements.reduce((a, p) => a + p.w * p.h, 0);
-    const usedCount = s.placements.length;
-    sumSheetArea += sheetArea;
-    sumInnerArea += innerA;
-    sumUsedArea += usedA;
-    sumPlacements += usedCount;
-
-    const labelCounts = new Map();
-    for (const p of s.placements) {
-      const base = p.base || (p.label || '').split(' #')[0];
-      labelCounts.set(base, (labelCounts.get(base) || 0) + 1);
-    }
-
-    res.per_sheet.push({
-      id: s.id,
-      width: s.width,
-      height: s.height,
-      area_total: sheetArea,
-      area_inner: innerA,
-      area_used: usedA,
-      area_waste_inner: Math.max(0, innerA - usedA),
-      utilisation_inner_pct: innerA > 0 ? (usedA / innerA) * 100 : 0,
-      placements: usedCount,
-      label_breakdown: Array.from(labelCounts.entries()).map(([base, qty]) => ({ base, qty }))
-    });
-  }
-
-  res.totals = {
-    pieces_required: required.reduce((a, r) => a + Math.max(1, r.quantity | 0), 0),
-    pieces_placed: sumPlacements,
-    pieces_unplaced: Math.max(0, required.reduce((a, r) => a + Math.max(1, r.quantity | 0), 0) - sumPlacements),
-    area_sheet_total: sumSheetArea,
-    area_inner_total: sumInnerArea,
-    area_used_total: sumUsedArea,
-    area_waste_inner_total: Math.max(0, sumInnerArea - sumUsedArea),
-    utilisation_inner_total_pct: sumInnerArea > 0 ? (sumUsedArea / sumInnerArea) * 100 : 0
-  };
-
-  const reqByBase = new Map();
-  for (const r of required) {
-    const base = r.label ?? `${r.width}x${r.height}`;
-    reqByBase.set(base, (reqByBase.get(base) || 0) + Math.max(1, r.quantity | 0));
-  }
-  const placedByBase = new Map();
-  for (const s of solution.sheets) for (const p of s.placements) {
-    const base = p.base || (p.label || '').split(' #')[0];
-    placedByBase.set(base, (placedByBase.get(base) || 0) + 1);
-  }
-  const allBases = new Set([...reqByBase.keys(), ...placedByBase.keys()]);
-  for (const base of allBases) {
-    const req = reqByBase.get(base) || 0;
-    const plc = placedByBase.get(base) || 0;
-    res.by_label.push({ base, required: req, placed: plc, unplaced: Math.max(0, req - plc) });
-  }
-
-  return res;
-}
-
-function injectResults(stats, selectedId, available) {
-  const el = document.getElementById('results');
-  if (!el) return;
-  el.innerHTML = '';
-
-  const u = unitSuffix();
-  const u2 = unitAreaSuffix();
-
- const warningEl = document.getElementById('warning-message');
-if (warningEl) {
-    const unplacedCount = stats?.totals?.pieces_unplaced || 0;
-    const warnings = stats?.warnings || [];
-    const allWarnings = [];
-    if (warnings.length > 0) {
-        allWarnings.push(...warnings);
-    }
-    if (unplacedCount > 0) {
-        allWarnings.push(`⚠️ Please note, ${unplacedCount} piece${unplacedCount > 1 ? 's' : ''} could not be placed. More available sheets are required to complete the process.`);
-    }
-    if (allWarnings.length > 0) {
-        warningEl.style.display = 'block';
-        warningEl.textContent = allWarnings.join(' | ');
-    } else {
-        warningEl.style.display = 'none';
-    }
-}
-
-  function makePanel(title, pairs) {
-    const card = document.createElement('section');
-    card.className = 'stats-card';
-
-    const head = document.createElement('div');
-    head.className = 'stats-card__header';
-    head.textContent = title;
-    card.appendChild(head);
-
-    const grid = document.createElement('div');
-    grid.className = 'stats-grid';
-    card.appendChild(grid);
-
-    pairs.forEach(([k, v]) => {
-      const K = document.createElement('div');
-      K.className = 'k';
-      K.textContent = k;
-
-      const V = document.createElement('div');
-      V.className = 'v';
-      V.textContent = v;
-
-      grid.appendChild(K);
-      grid.appendChild(V);
-    });
-
-    return card;
-  }
-
-  const t = stats.totals;
-  const totalPairs = [
-    ['Sheets (Used / Total):', `${stats.sheets_used_nonempty} / ${stats.sheets_total}`],
-    ['Number of Parts:', String(t.pieces_placed)],
-    ['Parts Unplaced:', String(t.pieces_unplaced)],
-    ['Square of Parts:', `${fmtAreaFromMM2(t.area_used_total)} ${u2}`],
-    ['Usable Area (Inner):', `${fmtAreaFromMM2(t.area_inner_total)} ${u2}`],
-    ['Square of Waste:', `${fmtAreaFromMM2(t.area_waste_inner_total)} ${u2}`],
-    ['Utilisation:', `${fmt(t.utilisation_inner_total_pct)} %`],
-    ['Kerf / Edge:', `${fmtLenFromMM(stats.kerf || 0)} ${u} / ${fmtLenFromMM(stats.edgeClearance || 0)} ${u}`],
-  ];
-  el.appendChild(makePanel('Total', totalPairs));
-
-  const usedSheets = new Map();
-  stats.per_sheet.forEach(s => {
-    const key = `${s.width}x${s.height}`;
-    usedSheets.set(key, (usedSheets.get(key) || 0) + (s.placements.length > 0 ? 1 : 0));
-  });
-
-  const sheetSummary = new Map();
-  available.forEach(s => {
-    const key = `${s.width}x${s.height}`;
-    sheetSummary.set(key, (sheetSummary.get(key) || 0) + Math.max(1, s.quantity | 0));
-  });
-
-  const availPairs = [];
-  sheetSummary.forEach((quantity, key) => {
-    const [width, height] = key.split('x').map(Number);
-    const usedCount = usedSheets.get(key) || 0;
-    const status = usedCount > 0 ? `Used: ${usedCount}` : 'Unused';
-    availPairs.push([
-      `Sheet ${fmtLenFromMM(width)} × ${fmtLenFromMM(height)} ${u}`,
-      `Qty: ${quantity}, ${status}`
-    ]);
-  });
-
-  availPairs.sort((a, b) => {
-    const [w1, h1] = a[0].match(/(\d+) × (\d+)/).slice(1).map(Number);
-    const [w2, h2] = b[0].match(/(\d+) × (\d+)/).slice(1).map(Number);
-    return (w1 * h1) - (w2 * h2) || w1 - w2;
-  });
-
-  el.appendChild(makePanel('Available Sheets', availPairs));
-
-  const chosen = stats.per_sheet.find(s => s.id === selectedId) || stats.per_sheet[0];
-  if (chosen) {
-    const sheetPairs = [
-      ['Sheet Size:', `${fmtLenFromMM(chosen.width)} × ${fmtLenFromMM(chosen.height)} ${u}`],
-      ['Number of Parts:', String(chosen.placements)],
-      ['Square of Sheet (Usable):', `${fmtAreaFromMM2(chosen.area_inner)} ${u2}`],
-      ['Square of Parts:', `${fmtAreaFromMM2(chosen.area_used)} ${u2}`],
-      ['Square of Waste:', `${fmtAreaFromMM2(chosen.area_waste_inner)} ${u2}`],
-      ['Utilisation:', `${fmt(chosen.utilisation_inner_pct)} %`],
-    ];
-    el.appendChild(makePanel(`Sheet ${chosen.id}`, sheetPairs));
-  }
-
-  if (stats.notes?.length) {
-    const note = document.createElement('div');
-    note.className = 'stats-note';
-    note.textContent = stats.notes.join(' | ');
-    el.appendChild(note);
-  }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1418,29 +614,35 @@ function solveCSP(available, required, opts = {}) {
     }
 
     function packMaxRects(basePool, itemsList) {
-      function chooseSheet(poolArr, it) {
+    function chooseSheet(poolArr, it, bins) {
         let best = -1, bestArea = Infinity;
         for (let i = 0; i < poolArr.length; i++) {
-          const s = poolArr[i];
-          const { W, H } = innerDims(s);
-          if ((it.w <= W && it.h <= H) || (allowRotate && it.h <= W && it.w <= H)) {
-            const area = W * H;
-            if (area < bestArea) { bestArea = area; best = i; }
-          }
+            const s = poolArr[i];
+            const { W, H } = innerDims(s);
+            if ((it.w <= W && it.h <= H) || (allowRotate && it.h <= W && it.w <= H)) {
+                const area = W * H;
+                // Prefer unused sheets to distribute items
+                const usedCount = bins.filter(b => b.W === s.width && b.H === s.height).length;
+                const penalty = usedCount * 1000000; // Penalize already-used sheet sizes
+                if (area + penalty < bestArea) {
+                    bestArea = area + penalty;
+                    best = i;
+                }
+            }
         }
         return best;
-      }
+    }
 
-      const sortStrategies = [
+    const sortStrategies = [
         (a, b) => (b.w * b.h) - (a.w * a.h) || Math.max(b.w, b.h) - Math.max(a.w, a.h),
         (a, b) => (b.w + b.h) - (a.w + a.h) || (b.w * b.h) - (a.w * a.h),
         (a, b) => b.w - a.w || b.h - a.h
-      ];
+    ];
 
-      let bestResult = null;
-      let minUnplaced = Infinity;
+    let bestResult = null;
+    let minUnplaced = Infinity;
 
-      for (const sortFn of sortStrategies) {
+    for (const sortFn of sortStrategies) {
         const pool = basePool.map(p => ({ ...p }));
         const bins = [];
         const L = itemsList.map(o => ({ ...o }));
@@ -1448,88 +650,121 @@ function solveCSP(available, required, opts = {}) {
         const unplaced = [];
 
         for (const it of L) {
-          let placed = false;
-          for (const bin of bins) {
-            if (bin.insert(it.w, it.h, it.label, it.base, it.origW, it.origH)) {
-              placed = true;
-              break;
+            let placed = false;
+            // Try existing bins first
+            for (const bin of bins) {
+                if (bin.insert(it.w, it.h, it.label, it.base, it.origW, it.origH)) {
+                    placed = true;
+                    break;
+                }
             }
-          }
-          if (!placed) {
-            let idx = chooseSheet(pool, it);
-            if (idx < 0 && pool.length > 0) {
-              idx = pool.reduce((best, s, i) => {
-                const { W, H } = innerDims(s);
-                const area = W * H;
-                return area > (innerDims(pool[best] || { width: 0, height: 0 }).W * innerDims(pool[best] || { width: 0, height: 0 }).H) ? i : best;
-              }, 0);
+            if (!placed) {
+                let idx = chooseSheet(pool, it, bins);
+                if (idx < 0 && pool.length > 0) {
+                    idx = pool.reduce((best, s, i) => {
+                        const { W, H } = innerDims(s);
+                        const area = W * H;
+                        return area > (innerDims(pool[best] || { width: 0, height: 0 }).W * innerDims(pool[best] || { width: 0, height: 0 }).H) ? i : best;
+                    }, 0);
+                }
+                if (idx >= 0) {
+                    const s = pool.splice(idx, 1)[0];
+                    const bin = new MaxRectsBin(s.width, s.height);
+                    const ok = bin.insert(it.w, it.h, it.label, it.base, it.origW, it.origH);
+                    if (ok) {
+                        bins.push(bin);
+                        placed = true;
+                    } else {
+                        unplaced.push(it);
+                        console.warn(`Failed to place ${it.label} (${it.w}x${it.h}) on sheet ${s.width}x${s.height}`);
+                    }
+                } else {
+                    unplaced.push(it);
+                    console.warn(`No suitable sheet for ${it.label} (${it.w}x${it.h})`);
+                }
             }
-            if (idx >= 0) {
-              const s = pool.splice(idx, 1)[0];
-              const bin = new MaxRectsBin(s.width, s.height);
-              const ok = bin.insert(it.w, it.h, it.label, it.base, it.origW, it.origH);
-              if (!ok) {
-                unplaced.push(it);
-                console.warn(`Failed to place ${it.label} (${it.w}x${it.h}) on sheet ${s.width}x${s.height}`);
-              } else {
-                bins.push(bin);
-              }
-            } else {
-              unplaced.push(it);
-              console.warn(`No suitable sheet for ${it.label} (${it.w}x${it.h})`);
-            }
-          }
         }
 
         if (unplaced.length < minUnplaced) {
-          minUnplaced = unplaced.length;
-          let nextId = 1;
-          const sheets = bins.map(b => ({ id: nextId++, width: b.W, height: b.H, placements: b.used }));
-          const innerA = (w, h) => Math.max(0, w - 2 * effectiveEdge) * Math.max(0, h - 2 * effectiveEdge);
-          let usedInner = 0, usedArea = 0;
-          for (const sh of sheets) {
-            const fill = sh.placements.reduce((a, p) => a + p.w * p.h, 0);
-            if (fill > 0) usedInner += innerA(sh.width, sh.height);
-            usedArea += fill;
-          }
-          const frag = bins.reduce((acc, b) => acc + scoreFragmentation(b.free), 0);
-          const placedByBase = new Map();
-          for (const sh of sheets) for (const p of sh.placements) placedByBase.set(p.base, (placedByBase.get(p.base) || 0) + 1);
-          bestResult = {
-            sheets,
-            waste: Math.max(0, usedInner - usedArea),
-            unplaced,
-            frag,
-            placedByBase: Array.from(placedByBase, ([base, qty]) => ({ base, qty }))
-          };
+            minUnplaced = unplaced.length;
+            let nextId = 1;
+            // Only include sheets with placements
+            const sheets = bins.filter(b => b.used.length > 0).map(b => ({
+                id: nextId++,
+                width: b.W,
+                height: b.H,
+                placements: b.used
+            }));
+            const innerA = (w, h) => Math.max(0, w - 2 * effectiveEdge) * Math.max(0, h - 2 * effectiveEdge);
+            let usedInner = 0, usedArea = 0;
+            for (const sh of sheets) {
+                const fill = sh.placements.reduce((a, p) => a + p.w * p.h, 0);
+                usedInner += innerA(sh.width, sh.height);
+                usedArea += fill;
+            }
+            const frag = bins.reduce((acc, b) => acc + scoreFragmentation(b.free), 0);
+            const placedByBase = new Map();
+            for (const sh of sheets) for (const p of sh.placements) placedByBase.set(p.base, (placedByBase.get(p.base) || 0) + 1);
+            bestResult = {
+                sheets,
+                waste: Math.max(0, usedInner - usedArea),
+                unplaced,
+                frag,
+                placedByBase: Array.from(placedByBase, ([base, qty]) => ({ base, qty }))
+            };
         }
 
         if (minUnplaced === 0) break;
-      }
+    }
 
-      if (bestResult.unplaced.length > 0 && basePool.length > bestResult.sheets.length) {
+    if (bestResult.unplaced.length > 0 && basePool.length > bestResult.sheets.length) {
         console.warn(`Retrying with additional sheet due to ${bestResult.unplaced.length} unplaced items`);
         const newPool = basePool.map(p => ({ ...p }));
         const newItems = bestResult.unplaced.map(o => ({ ...o }));
         const additionalResult = packMaxRects(newPool, newItems);
-        bestResult.sheets.push(...additionalResult.sheets);
+        let nextId = bestResult.sheets.length + 1;
+        const additionalSheets = additionalResult.sheets.map(s => ({
+            id: nextId++,
+            width: s.width,
+            height: s.height,
+            placements: s.placements
+        }));
+        bestResult.sheets.push(...additionalSheets);
         bestResult.unplaced = additionalResult.unplaced;
         bestResult.waste += additionalResult.waste;
         bestResult.frag += additionalResult.frag;
         const placedByBase = new Map(bestResult.placedByBase.map(({ base, qty }) => [base, qty]));
         for (const { base, qty } of additionalResult.placedByBase) {
-          placedByBase.set(base, (placedByBase.get(base) || 0) + qty);
+            placedByBase.set(base, (placedByBase.get(base) || 0) + qty);
         }
         bestResult.placedByBase = Array.from(placedByBase, ([base, qty]) => ({ base, qty }));
-      }
-
-      if (bestResult.unplaced.length > 0) {
-        console.warn(`Final unplaced items:`, bestResult.unplaced);
-      }
-
-      return bestResult;
     }
 
+    if (bestResult.unplaced.length > 0) {
+        console.warn(`Final unplaced items:`, bestResult.unplaced);
+    }
+
+    // Log the final result for debugging
+    console.log('packMaxRects result:', {
+        sheets: bestResult.sheets.map(s => ({
+            id: s.id,
+            width: s.width,
+            height: s.height,
+            placements: s.placements.map(p => ({
+                label: p.label,
+                x: p.x,
+                y: p.y,
+                w: p.w,
+                h: p.h
+            }))
+        })),
+        unplaced: bestResult.unplaced,
+        waste: bestResult.waste,
+        frag: bestResult.frag
+    });
+
+    return bestResult;
+}
     const basePool = [];
     available.forEach((s) => {
       const q = Math.max(1, s.quantity | 0);
@@ -1838,13 +1073,13 @@ function solveCSP(available, required, opts = {}) {
         kerf: solution.meta?.kerf ?? null,
         edgeClearance: solution.meta?.edgeClearance ?? null,
         allowRotate: solution.meta?.allowRotate ?? null,
-        sheets_total: available.reduce((sum, s) => sum + Math.max(1, s.quantity | 0), 0),
+        sheets_total: solution.sheets.length, // Fix: Use actual sheets in solution
         sheets_used_nonempty: solution.sheets.filter(s => s.placements.length > 0).length,
         sheet_ids: solution.sheets.map(s => s.id),
         totals: {},
         by_label: [],
         per_sheet: [],
-        warnings: solution.meta?.warnings || [], 
+        warnings: solution.meta?.warnings || [],
         notes: metaNote ? [metaNote] : []
     };
 
@@ -1913,93 +1148,133 @@ function solveCSP(available, required, opts = {}) {
 }
 
 function injectResults(stats, selectedId, available) {
-  const el = document.getElementById('results');
-  if (!el) return;
-  el.innerHTML = '';
+    const el = document.getElementById('results');
+    if (!el) return;
+    el.innerHTML = '';
 
-  const u = unitSuffix();
-  const u2 = unitAreaSuffix();
+    const u = unitSuffix();
+    const u2 = unitAreaSuffix();
 
-  const warningEl = document.getElementById('warning-message');
-if (warningEl) {
-    const unplacedCount = stats?.totals?.pieces_unplaced || 0;
-    const warnings = stats?.warnings || [];
-    if (warnings.length > 0) {
-        warningEl.style.display = 'block';
-        warningEl.textContent = warnings.join(' | ');
-    } else if (unplacedCount > 0) {
-        warningEl.style.display = 'block';
-        warningEl.textContent = `⚠️ Please note, ${unplacedCount} piece${unplacedCount > 1 ? 's' : ''} could not be placed. More available sheets are required to complete the process.`;
-    } else {
-        warningEl.style.display = 'none';
+    const warningEl = document.getElementById('warning-message');
+    if (warningEl) {
+        const unplacedCount = stats?.totals?.pieces_unplaced || 0;
+        const warnings = stats?.warnings || [];
+        if (warnings.length > 0) {
+            warningEl.style.display = 'block';
+            warningEl.textContent = warnings.join(' | ');
+        } else if (unplacedCount > 0) {
+            warningEl.style.display = 'block';
+            warningEl.textContent = `⚠️ Please note, ${unplacedCount} piece${unplacedCount > 1 ? 's' : ''} could not be placed. More available sheets are required to complete the process.`;
+        } else {
+            warningEl.style.display = 'none';
+        }
     }
-}
-  function makePanel(title, pairs) {
-    const card = document.createElement('section');
-    card.className = 'stats-card';
 
-    const head = document.createElement('div');
-    head.className = 'stats-card__header';
-    head.textContent = title;
-    card.appendChild(head);
+    function makePanel(title, pairs) {
+        const card = document.createElement('section');
+        card.className = 'stats-card';
+        const head = document.createElement('div');
+        head.className = 'stats-card__header';
+        head.textContent = title;
+        card.appendChild(head);
+        const grid = document.createElement('div');
+        grid.className = 'stats-grid';
+        card.appendChild(grid);
+        pairs.forEach(([k, v]) => {
+            const K = document.createElement('div');
+            K.className = 'k';
+            K.textContent = k;
+            const V = document.createElement('div');
+            V.className = 'v';
+            V.textContent = v;
+            grid.appendChild(K);
+            grid.appendChild(V);
+        });
+        return card;
+    }
 
-    const grid = document.createElement('div');
-    grid.className = 'stats-grid';
-    card.appendChild(grid);
+    const t = stats.totals;
+    const totalPairs = [
+        ['Sheets (Used / Total):', `${stats.sheets_used_nonempty} / ${stats.sheets_total}`],
+        ['Number of Parts:', String(t.pieces_placed)],
+        ['Parts Unplaced:', String(t.pieces_unplaced)],
+        ['Square of Parts:', `${fmtAreaFromMM2(t.area_used_total)} ${u2}`],
+        ['Usable Area (Inner):', `${fmtAreaFromMM2(t.area_inner_total)} ${u2}`],
+        ['Square of Waste:', `${fmtAreaFromMM2(t.area_waste_inner_total)} ${u2}`],
+        ['Utilisation:', `${fmt(t.utilisation_inner_total_pct)} %`],
+        ['Kerf / Edge:', `${fmtLenFromMM(stats.kerf || 0)} ${u} / ${fmtLenFromMM(stats.edgeClearance || 0)} ${u}`],
+    ];
+    el.appendChild(makePanel('Total', totalPairs));
 
-    pairs.forEach(([k, v]) => {
-      const K = document.createElement('div');
-      K.className = 'k';
-      K.textContent = k;
-
-      const V = document.createElement('div');
-      V.className = 'v';
-      V.textContent = v;
-
-      grid.appendChild(K);
-      grid.appendChild(V);
+    // Add Available Sheets panel
+    const usedSheets = new Map();
+    stats.per_sheet.forEach(s => {
+        const key = `${s.width}x${s.height}`;
+        usedSheets.set(key, (usedSheets.get(key) || 0) + (s.placements.length > 0 ? 1 : 0));
     });
 
-    return card;
-  }
+    const sheetSummary = new Map();
+    available.forEach(s => {
+        const key = `${s.width}x${s.height}`;
+        sheetSummary.set(key, (sheetSummary.get(key) || 0) + Math.max(1, s.quantity | 0));
+    });
 
-  const t = stats.totals;
-  const totalPairs = [
-    ['Sheets (Used / Total):', `${stats.sheets_used_nonempty} / ${stats.sheets_total}`],
-    ['Number of Parts:', String(t.pieces_placed)],
-    ['Parts Unplaced:', String(t.pieces_unplaced)],
-    ['Square of Parts:', `${fmtAreaFromMM2(t.area_used_total)} ${u2}`],
-    ['Usable Area (Inner):', `${fmtAreaFromMM2(t.area_inner_total)} ${u2}`],
-    ['Square of Waste:', `${fmtAreaFromMM2(t.area_waste_inner_total)} ${u2}`],
-    ['Utilisation:', `${fmt(t.utilisation_inner_total_pct)} %`],
-    ['Kerf / Edge:', `${fmtLenFromMM(stats.kerf || 0)} ${u} / ${fmtLenFromMM(stats.edgeClearance || 0)} ${u}`],
-  ];
-  el.appendChild(makePanel('Total', totalPairs));
+    const availPairs = [];
+    sheetSummary.forEach((quantity, key) => {
+        const [width, height] = key.split('x').map(Number);
+        const usedCount = usedSheets.get(key) || 0;
+        const status = usedCount > 0 ? `Used: ${usedCount}` : 'Unused';
+        availPairs.push([
+            `Sheet ${fmtLenFromMM(width)} × ${fmtLenFromMM(height)} ${u}`,
+            `Qty: ${quantity}, ${status}`
+        ]);
+    });
 
+    availPairs.sort((a, b) => {
+        const [w1, h1] = a[0].match(/(\d+) × (\d+)/).slice(1).map(Number);
+        const [w2, h2] = b[0].match(/(\d+) × (\d+)/).slice(1).map(Number);
+        return (w1 * h1) - (w2 * h2) || w1 - w2;
+    });
 
-  const chosen = stats.per_sheet.find(s => s.id === selectedId) || stats.per_sheet[0];
-  if (chosen) {
-    const sheetPairs = [
-      ['Sheet Size:', `${fmtLenFromMM(chosen.width)} × ${fmtLenFromMM(chosen.height)} ${u}`],
-      ['Number of Parts:', String(chosen.placements)],
-      ['Square of Sheet (Usable):', `${fmtAreaFromMM2(chosen.area_inner)} ${u2}`],
-      ['Square of Parts:', `${fmtAreaFromMM2(chosen.area_used)} ${u2}`],
-      ['Square of Waste:', `${fmtAreaFromMM2(chosen.area_waste_inner)} ${u2}`],
-      ['Utilisation:', `${fmt(chosen.utilisation_inner_pct)} %`],
-    ];
-    el.appendChild(makePanel(`Sheet ${chosen.id}`, sheetPairs));
-  }
+    el.appendChild(makePanel('Available Sheets', availPairs));
 
-  if (stats.notes?.length) {
-    const note = document.createElement('div');
-    note.className = 'stats-note';
-    note.textContent = stats.notes.join(' | ');
-    el.appendChild(note);
-  }
+    const chosen = stats.per_sheet.find(s => s.id === selectedId) || stats.per_sheet[0];
+    if (chosen) {
+        const sheetPairs = [
+            ['Sheet Size:', `${fmtLenFromMM(chosen.width)} × ${fmtLenFromMM(chosen.height)} ${u}`],
+            ['Number of Parts:', String(chosen.placements)],
+            ['Square of Sheet (Usable):', `${fmtAreaFromMM2(chosen.area_inner)} ${u2}`],
+            ['Square of Parts:', `${fmtAreaFromMM2(chosen.area_used)} ${u2}`],
+            ['Square of Waste:', `${fmtAreaFromMM2(chosen.area_waste_inner)} ${u2}`],
+            ['Utilisation:', `${fmt(chosen.utilisation_inner_pct)} %`],
+        ];
+        el.appendChild(makePanel(`Sheet ${chosen.id}`, sheetPairs));
+    } else {
+        const note = document.createElement('div');
+        note.className = 'stats-note';
+        note.textContent = 'No sheet data available for selection.';
+        el.appendChild(note);
+    }
+
+    if (stats.notes?.length) {
+        const note = document.createElement('div');
+        note.className = 'stats-note';
+        note.textContent = stats.notes.join(' | ');
+        el.appendChild(note);
+    }
+
+    // Log for debugging
+    console.log('injectResults: selectedId=', selectedId, 'stats.per_sheet=', stats.per_sheet.map(s => ({
+        id: s.id,
+        placements: s.placements,
+        area_used: s.area_used
+    })));
 }
+
   let lastSolution = null;
   let selectedSheetId = null;
   let lastStats = null;
+  let lastAvailable = null;
 
   function highlightSelection() {
     if (!previewsDiv) return;
@@ -2048,12 +1323,16 @@ if (warningEl) {
         tctx.restore();
       }
 
-      wrapper.addEventListener('click', () => {
+   wrapper.addEventListener('click', () => {
   selectedSheetId = sheet.id;
   view.scale = 1; view.offsetX = 0; view.offsetY = 0;
-  drawMain(); 
+  drawMain();
   highlightSelection();
-  if (lastStats) injectResults(lastStats, selectedSheetId, readAvailable()); 
+  if (lastSolution && lastAvailable) {
+    const stats = computeStats(lastSolution, lastAvailable, readRequired(), '');
+    lastStats = stats;
+    injectResults(stats, selectedSheetId, lastAvailable);
+  }
 });
     }
     highlightSelection();
@@ -2086,17 +1365,18 @@ if (warningEl) {
     mctx.restore();
   }
 
-  function render() {
-    const mainDims = ensureHiDPIFor(canvas);
-    const mctx = mainDims.ctx;
+ function render() {
+  const mainDims = ensureHiDPIFor(canvas);
+  const mctx = mainDims.ctx;
 
-    const kerf = Number(bladeInput.value) * (1 / mmToUnitFactor(getSelectedUnit())) || 0;
-    const offset = Number(offsetInput.value) * (1 / mmToUnitFactor(getSelectedUnit())) || 0;
-    const userEdge = offset;
-    const available = readAvailable();
-    const required = readRequired();
-    const currentUnit = getSelectedUnit();
-    updateUnitsUIBadges();
+  const kerf = Number(bladeInput.value) * (1 / mmToUnitFactor(getSelectedUnit())) || 0;
+  const offset = Number(offsetInput.value) * (1 / mmToUnitFactor(getSelectedUnit())) || 0;
+  const userEdge = offset;
+  const available = readAvailable();
+  const required = readRequired();
+  lastAvailable = available;
+  const currentUnit = getSelectedUnit();
+  updateUnitsUIBadges();
 
     if (!available.length) {
       clearCanvas(mctx);
@@ -2136,31 +1416,33 @@ if (warningEl) {
       return;
     }
 
-    const solution = solveCSP(available, required, {
-      kerf,
-      edgeClearance: userEdge,
-      allowRotate: true,
-      unitName: currentUnit
+   const solution = solveCSP(available, required, {
+        kerf,
+        edgeClearance: userEdge,
+        allowRotate: true,
+        unitName: currentUnit
     });
 
     const placedAny = solution.sheets.some(s => s.placements.length > 0);
     let toShow = solution;
     let note = '';
     if (!solution.sheets.length) {
-      toShow = makeBlankSolutionFromAvailable(available, currentUnit);
-      toShow.meta.kerf = kerf;
-      toShow.meta.edgeClearance = userEdge;
-      toShow.meta.allowRotate = true;
-      note = 'No sheets generated';
+        toShow = makeBlankSolutionFromAvailable(available, currentUnit);
+        toShow.meta.kerf = kerf;
+        toShow.meta.edgeClearance = userEdge;
+        toShow.meta.allowRotate = true;
+        note = 'No sheets generated';
     } else if (!placedAny) {
-      note = 'No pieces placed under current constraints; showing available sheets';
+        note = 'No pieces placed under current constraints; showing available sheets';
     }
 
+    // Filter out empty sheets unless no placements exist
+    toShow.sheets = toShow.sheets.filter(s => s.placements.length > 0 || !placedAny);
     toShow.sheets.sort((a, b) => {
-      const aBlank = a.placements.length === 0;
-      const bBlank = b.placements.length === 0;
-      if (aBlank === bBlank) return 0;
-      return aBlank ? 1 : -1;
+        const aBlank = a.placements.length === 0;
+        const bBlank = b.placements.length === 0;
+        if (aBlank === bBlank) return a.id - b.id; // Preserve order for non-empty sheets
+        return aBlank ? 1 : -1;
     });
 
     lastSolution = toShow;
@@ -2221,20 +1503,22 @@ if (warningEl) {
     return t === 'input' || t === 'select' || t === 'textarea' || el?.isContentEditable;
   }
 
-  function selectSheetByIndex(idx) {
-    if (!lastSolution || !lastSolution.sheets.length) return;
-    const clamped = Math.max(0, Math.min(idx, lastSolution.sheets.length - 1));
-    selectedSheetId = lastSolution.sheets[clamped].id;
-    resetZoom(); drawMain(); highlightSelection(); if (lastStats) injectResults(lastStats, selectedSheetId);
-  }
+ function nextSheet(delta) {
+  if (!lastSolution || !lastSolution.sheets.length || !selectedSheetId) return;
+  const i = lastSolution.sheets.findIndex(s => s.id === selectedSheetId);
+  const n = (i + delta + lastSolution.sheets.length) % lastSolution.sheets.length;
+  selectedSheetId = lastSolution.sheets[n].id;
+  resetZoom(); drawMain(); highlightSelection();
+  if (lastStats) injectResults(lastStats, selectedSheetId, lastAvailable);
+}
 
-  function nextSheet(delta) {
-    if (!lastSolution || !lastSolution.sheets.length || !selectedSheetId) return;
-    const i = lastSolution.sheets.findIndex(s => s.id === selectedSheetId);
-    const n = (i + delta + lastSolution.sheets.length) % lastSolution.sheets.length;
-    selectedSheetId = lastSolution.sheets[n].id;
-    resetZoom(); drawMain(); highlightSelection(); if (lastStats) injectResults(lastStats, selectedSheetId);
-  }
+function selectSheetByIndex(idx) {
+  if (!lastSolution || !lastSolution.sheets.length) return;
+  const clamped = Math.max(0, Math.min(idx, lastSolution.sheets.length - 1));
+  selectedSheetId = lastSolution.sheets[clamped].id;
+  resetZoom(); drawMain(); highlightSelection();
+  if (lastStats) injectResults(lastStats, selectedSheetId, lastAvailable);
+}
 
   window.addEventListener('keydown', (e) => {
     const k = e.key;
