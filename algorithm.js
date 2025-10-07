@@ -1226,7 +1226,7 @@ function injectResults(stats, selectedId, available) {
         const status = usedCount > 0 ? `Used: ${usedCount}` : 'Unused';
         availPairs.push([
             `Sheet ${fmtLenFromMM(width)} × ${fmtLenFromMM(height)} ${u}`,
-            `Qty: ${quantity}, ${status}`
+            `Quantity: ${quantity}`
         ]);
     });
 
