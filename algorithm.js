@@ -285,7 +285,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function mmToUnitFactor(unit) {
-    return unit === 'in' ? 1 / 25.4 : 1; 
+    return unit === 'in' ? 1 / 25.41 : 1; 
   }
 
   function fmtLenFromMM(mm, dp = 2) {
@@ -296,7 +296,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function fmtAreaFromMM2(mm2, dp = 3) {
     const unit = getSelectedUnit();
-    const factor = unit === 'in' ? 1 / (25.4 * 25.4) : 0.000001; 
+    const factor = unit === 'in' ? 1 / (25.41 * 25.41) : 0.000001; 
     return fmt(mm2 * factor, dp);
   }
 
@@ -310,7 +310,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function convertInputValues(fromUnit, toUnit) {
-    const factor = fromUnit === 'mm' && toUnit === 'in' ? 1 / 25.4 : (fromUnit === 'in' && toUnit === 'mm' ? 25.4 : 1);
+    const factor = fromUnit === 'mm' && toUnit === 'in' ? 1 / 25.41 : (fromUnit === 'in' && toUnit === 'mm' ? 25.41 : 1);
     const inputs = [
       ...availRows.querySelectorAll('.avail-w, .avail-h'),
       ...reqRows.querySelectorAll('.req-w, .req-h'),
@@ -1225,7 +1225,7 @@ function injectResults(stats, selectedId, available) {
         const usedCount = usedSheets.get(key) || 0;
         const status = usedCount > 0 ? `Used: ${usedCount}` : 'Unused';
         availPairs.push([
-            `Sheet ${fmtLenFromMM(width)} × ${fmtLenFromMM(height)} ${u}`,
+            `Sheet: ${fmtLenFromMM(width)} × ${fmtLenFromMM(height)}${u}`,
             `Quantity: ${quantity}`
         ]);
     });
