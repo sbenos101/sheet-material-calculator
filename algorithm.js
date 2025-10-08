@@ -361,7 +361,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const h = Number(r.querySelector('.req-h').value) * factor;
       const q = Number(r.querySelector('.req-q').value);
       if (Number.isFinite(w) && Number.isFinite(h) && Number.isFinite(q) && q > 0 && w > 0 && h > 0) {
-        out.push({ width: w, height: h, quantity: Math.max(1, Math.floor(q)), label: '' || `${fmtLenFromMM(w)}x${fmtLenFromMM(h)}` });
+        out.push({ width: w, height: h, quantity: Math.max(1, Math.floor(q)), label: '' || `${fmtLenFromMM(w)} × ${fmtLenFromMM(h)}` });
       }
     }
     return out;
@@ -408,14 +408,34 @@ function solveCSP(available, required, opts = {}) {
                 }
             }
         }
-        if (!fits) {
-            const label = r.label ?? `${fmtLenFromMM(r.width)}x${fmtLenFromMM(r.height)}`;
-            oversizedItems.push(`${label} (${fmtLenFromMM(r.width)}x${fmtLenFromMM(r.height)} ${unitName})`);
-        }
+   if (!fits) {
+    oversizedItems.push(`${fmtLenFromMM(r.width)} × ${fmtLenFromMM(r.height)}${unitName}`);
+}
     }
 
 
-    if (oversizedItems.length > 0) {
+if (oversizedItems.length > 0) {
+    const warningMsg = `⚠️ ${oversizedItems.join(', ')} ${oversizedItems.length > 1 ? 'are' : 'is'} too large for the available sheet size and ${oversizedItems.length > 1 ? 'have' : 'has'} been excluded from the layout. Please remove this sheet or the edge offset.`;
+    
+    required = required.filter(r => {
+        const w = r.width;
+        const h = r.height;
+        for (const sheet of available) {
+            const { W, H } = innerDims(sheet);
+            if (allowRotate) {
+                if ((w <= W && h <= H) || (h <= W && w <= H)) {
+                    return true;
+                }
+            } else {
+                if (w <= W && h <= H) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    });
+    
+    if (required.length === 0) {
         const blank = makeBlankSolutionFromAvailable(available, unitName);
         blank.meta = {
             kerf,
@@ -423,17 +443,15 @@ function solveCSP(available, required, opts = {}) {
             allowRotate,
             requiredTotals: [],
             placedByBase: [],
-            unplaced: required.map(r => ({
-                w: Math.max(0, r.width),
-                h: Math.max(0, r.height),
-                label: r.label ?? `${fmtLenFromMM(r.width)}x${fmtLenFromMM(r.height)}`,
-                base: r.label ?? `${fmtLenFromMM(r.width)}x${fmtLenFromMM(r.height)}`
-            })),
-            warnings: [`⚠️ Please note, ${oversizedItems} is too large for the available sheet size.`],
+            unplaced: [],
+            warnings: [warningMsg],
             notes: []
         };
         return blank;
     }
+    
+    var pendingWarning = warningMsg;
+}
 
     const items = [];
     const reqTotals = new Map();
@@ -621,9 +639,8 @@ function solveCSP(available, required, opts = {}) {
             const { W, H } = innerDims(s);
             if ((it.w <= W && it.h <= H) || (allowRotate && it.h <= W && it.w <= H)) {
                 const area = W * H;
-                // Prefer unused sheets to distribute items
                 const usedCount = bins.filter(b => b.W === s.width && b.H === s.height).length;
-                const penalty = usedCount * 1000000; // Penalize already-used sheet sizes
+                const penalty = usedCount * 1000000;
                 if (area + penalty < bestArea) {
                     bestArea = area + penalty;
                     best = i;
@@ -651,7 +668,6 @@ function solveCSP(available, required, opts = {}) {
 
         for (const it of L) {
             let placed = false;
-            // Try existing bins first
             for (const bin of bins) {
                 if (bin.insert(it.w, it.h, it.label, it.base, it.origW, it.origH)) {
                     placed = true;
@@ -688,7 +704,6 @@ function solveCSP(available, required, opts = {}) {
         if (unplaced.length < minUnplaced) {
             minUnplaced = unplaced.length;
             let nextId = 1;
-            // Only include sheets with placements
             const sheets = bins.filter(b => b.used.length > 0).map(b => ({
                 id: nextId++,
                 width: b.W,
@@ -744,25 +759,6 @@ function solveCSP(available, required, opts = {}) {
         console.warn(`Final unplaced items:`, bestResult.unplaced);
     }
 
-    // Log the final result for debugging
-    console.log('packMaxRects result:', {
-        sheets: bestResult.sheets.map(s => ({
-            id: s.id,
-            width: s.width,
-            height: s.height,
-            placements: s.placements.map(p => ({
-                label: p.label,
-                x: p.x,
-                y: p.y,
-                w: p.w,
-                h: p.h
-            }))
-        })),
-        unplaced: bestResult.unplaced,
-        waste: bestResult.waste,
-        frag: bestResult.frag
-    });
-
     return bestResult;
 }
     const basePool = [];
@@ -775,25 +771,25 @@ function solveCSP(available, required, opts = {}) {
 
     packed.sheets.sort((a, b) => (b.placements.length > 0) - (a.placements.length > 0));
 
-    return {
-      unitName,
-      sheets: packed.sheets,
-      meta: {
+   return {
+    unitName,
+    sheets: packed.sheets,
+    meta: {
         kerf,
         edgeClearance: effectiveEdge,
         allowRotate,
         requiredTotals: Array.from(reqTotals, ([base, qty]) => ({ base, qty })),
         placedByBase: packed.placedByBase,
         unplaced: (packed.unplaced || []).map(u => ({
-          w: Math.max(0, u.origW),
-          h: Math.max(0, u.origH),
-          label: u.label,
-          base: u.base
+            w: Math.max(0, u.origW),
+            h: Math.max(0, u.origH),
+            label: u.label,
+            base: u.base
         })),
-        warnings: [],
+        warnings: typeof pendingWarning !== 'undefined' ? [pendingWarning] : [],
         notes: []
-      }
-    };
+    }
+};
 }
 
   function drawSolution(ctx, width, height, solution, opts = {}) {
@@ -1073,7 +1069,7 @@ function solveCSP(available, required, opts = {}) {
         kerf: solution.meta?.kerf ?? null,
         edgeClearance: solution.meta?.edgeClearance ?? null,
         allowRotate: solution.meta?.allowRotate ?? null,
-        sheets_total: solution.sheets.length, // Fix: Use actual sheets in solution
+        sheets_total: solution.sheets.length,
         sheets_used_nonempty: solution.sheets.filter(s => s.placements.length > 0).length,
         sheet_ids: solution.sheets.map(s => s.id),
         totals: {},
@@ -1164,7 +1160,7 @@ function injectResults(stats, selectedId, available) {
             warningEl.textContent = warnings.join(' | ');
         } else if (unplacedCount > 0) {
             warningEl.style.display = 'block';
-            warningEl.textContent = `⚠️ Please note, ${unplacedCount} piece${unplacedCount > 1 ? 's' : ''} could not be placed. More available sheets are required to complete the process.`;
+            warningEl.textContent = `⚠️ ${unplacedCount} piece${unplacedCount > 1 ? 's' : ''} could not be placed. More available sheets are required to complete the process.`;
         } else {
             warningEl.style.display = 'none';
         }
@@ -1206,7 +1202,6 @@ function injectResults(stats, selectedId, available) {
     ];
     el.appendChild(makePanel('Total', totalPairs));
 
-    // Add Available Sheets panel
     const usedSheets = new Map();
     stats.per_sheet.forEach(s => {
         const key = `${s.width}x${s.height}`;
@@ -1263,13 +1258,7 @@ function injectResults(stats, selectedId, available) {
         el.appendChild(note);
     }
 
-    // Log for debugging
-    console.log('injectResults: selectedId=', selectedId, 'stats.per_sheet=', stats.per_sheet.map(s => ({
-        id: s.id,
-        placements: s.placements,
-        area_used: s.area_used
-    })));
-}
+  }
 
   let lastSolution = null;
   let selectedSheetId = null;
@@ -1436,12 +1425,11 @@ function injectResults(stats, selectedId, available) {
         note = 'No pieces placed under current constraints; showing available sheets';
     }
 
-    // Filter out empty sheets unless no placements exist
     toShow.sheets = toShow.sheets.filter(s => s.placements.length > 0 || !placedAny);
     toShow.sheets.sort((a, b) => {
         const aBlank = a.placements.length === 0;
         const bBlank = b.placements.length === 0;
-        if (aBlank === bBlank) return a.id - b.id; // Preserve order for non-empty sheets
+        if (aBlank === bBlank) return a.id - b.id;
         return aBlank ? 1 : -1;
     });
 
