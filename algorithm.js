@@ -1573,29 +1573,3 @@ function selectSheetByIndex(idx) {
 });
 
 </script>
-
-<script>
- document.addEventListener("mousemove", updateTooltips);
-document.addEventListener("mouseleave", updateTooltips);
-window.addEventListener("resize", updateTooltips);
-
-function updateTooltips(e) {
-  const tooltips = document.querySelectorAll(".th-tooltip");
-  tooltips.forEach(t => { t.style.opacity = "0"; });
-
-  const ev = e || window.event;
-  if (!ev || !ev.target) return;
-
-  const wrapper = ev.target.closest(".th-tooltip-i");
-  if (!wrapper) return;
-
-  const tip = wrapper.querySelector(".th-tooltip");
-  if (tip) {
-    tip.style.left = (ev.clientX + 10) + "px";
-    tip.style.top = (ev.clientY + 10) + "px";
-    tip.style.opacity = "1";
-  }
-}
-
-document.addEventListener("DOMContentLoaded", updateTooltips);
-</script>
