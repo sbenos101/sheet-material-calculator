@@ -1,3 +1,5 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <script>
 
 function getSelectedUnit() { return 'mm'; }
@@ -388,7 +390,6 @@ function solveCSP(available, required, opts = {}) {
         }
     }
 
-
     const oversizedItems = [];
     for (const r of required) {
         const w = r.width; 
@@ -412,7 +413,6 @@ function solveCSP(available, required, opts = {}) {
     oversizedItems.push(`${fmtLenFromMM(r.width)} × ${fmtLenFromMM(r.height)}${unitName}`);
 }
     }
-
 
 if (oversizedItems.length > 0) {
     const warningMsg = `⚠️ ${oversizedItems.join(', ')} ${oversizedItems.length > 1 ? 'are' : 'is'} too large for the available sheet size and ${oversizedItems.length > 1 ? 'have' : 'has'} been excluded from the layout. Please remove this sheet or the edge offset.`;
@@ -955,28 +955,31 @@ if (oversizedItems.length > 0) {
         const wText = fmtLenFromMM(p.w);
         const hText = fmtLenFromMM(p.h);
 
-        const fontPx = Math.max(10, Math.min(14, Math.floor(Math.min(pw, ph) / 4)));
+        const fontPx = Math.max(8, Math.min(12, Math.floor(Math.min(pw, ph) / 5)));
         ctx.save();
         ctx.fillStyle = '#000';
-        ctx.font = `${fontPx}px`;
+        ctx.font = `bold ${fontPx}px`;
 
-        if (pw >= 24 && updateKeys) {
+        if (updateKeys) {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'top';
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = 'rgba(255,255,255,.8)';
-          ctx.strokeText(wText, px + pw / 2, py + 2);
-          ctx.fillText(wText, px + pw / 2, py + 2);
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = 'rgba(255,255,255,.9)';
+          const wY = pw < 18 ? py - fontPx - 2 : py + 2;
+          ctx.strokeText(wText, px + pw / 2, wY);
+          ctx.fillText(wText, px + pw / 2, wY);
         }
 
-        if (ph >= 24 && updateKeys) {
+
+        if (updateKeys) {
           ctx.save();
-          ctx.translate(px + pw - 6, py + ph / 2);
+          const hX = ph < 18 ? px + pw + fontPx + 2 : px + pw - 6;
+          ctx.translate(hX, py + ph / 2);
           ctx.rotate(-Math.PI / 2);
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = 'rgba(255,255,255,.8)';
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = 'rgba(255,255,255,.9)';
           ctx.strokeText(hText, 0, 0);
           ctx.fillText(hText, 0, 0);
           ctx.restore();
@@ -1446,6 +1449,91 @@ function injectResults(stats, selectedId, available) {
     injectResults(stats, selectedSheetId, available);
   }
 
+  function exportAllSheetsAsPDF() {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    alert('jsPDF library failed to load. Please check your internet connection or try again later.');
+    return;
+  }
+
+  if (!lastSolution || !lastSolution.sheets.length) {
+    alert('No sheets available to export.');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 10; // mm
+  const pxToMm = 25.4 / 96; // Convert pixels to mm (assuming 96 DPI)
+
+  lastSolution.sheets.forEach((sheet, index) => {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    const mainCanvas = document.getElementById('canvas');
+
+    if (!mainCanvas || mainCanvas.width === 0 || mainCanvas.height === 0) {
+      console.error('Main canvas is invalid or has zero dimensions');
+      alert('Cannot export PDF: Main canvas is invalid.');
+      tempCanvas.remove();
+      return;
+    }
+
+    const dpr = window.devicePixelRatio || 1;
+    tempCanvas.width = mainCanvas.width;
+    tempCanvas.height = mainCanvas.height;
+    tempCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    drawSingleSheet(tempCtx, mainCanvas.clientWidth, mainCanvas.clientHeight, lastSolution, sheet, {
+      margin: 30,
+      gutter: 0,
+      flipY: true,
+      showGrid: true,
+      required: readRequired(),
+      gridTargetPx: 12,
+      updateKeys: true,
+      annotateSheetDims: true
+    });
+
+    const imgData = tempCanvas.toDataURL('image/png');
+    if (imgData === 'data:,') {
+      console.error('Canvas is empty for sheet', sheet.id);
+      alert(`Failed to render sheet ${sheet.id}. The canvas is empty.`);
+      tempCanvas.remove();
+      return;
+    }
+
+    const sheetRatio = sheet.height / sheet.width;
+    let imgWidth = (pageWidth - 2 * margin) / pxToMm;
+    let imgHeight = imgWidth * sheetRatio;
+    if (imgHeight > (pageHeight - 2 * margin) / pxToMm) {
+      imgHeight = (pageHeight - 2 * margin) / pxToMm;
+      imgWidth = imgHeight / sheetRatio;
+    }
+
+    const x = (pageWidth - imgWidth * pxToMm) / 2;
+    const y = (pageHeight - imgHeight * pxToMm) / 2;
+
+    if (index > 0) {
+      pdf.addPage();
+    }
+
+    const u = unitSuffix();
+    pdf.setFontSize(12);
+    pdf.text(`Sheet ${sheet.id} (${fmtLenFromMM(sheet.width)}×${fmtLenFromMM(sheet.height)} ${u})`, pageWidth / 2, margin, { align: 'center' });
+
+    pdf.addImage(imgData, 'PNG', x, y, imgWidth * pxToMm, imgHeight * pxToMm);
+
+    tempCanvas.remove();
+  });
+
+  pdf.save('cutting-layout-all-sheets.pdf');
+}
   const ro = new ResizeObserver(() => render());
   ro.observe(canvas);
 
@@ -1461,6 +1549,7 @@ function injectResults(stats, selectedId, available) {
           <button type="button" data-act="zoom-out" title="Zoom Out (-)">-</button>
           <button type="button" data-act="reset" title="Reset View (0)">Reset</button>
           <button type="button" data-act="export" title="Export Image (S)">Create Image</button>
+          <button type="button" data-act="export-pdf" title="Export All Sheets as PDF (P)">Create PDF</button>
         </div>`;
       const host = previewsDiv?.parentElement || document.body;
       host.insertBefore(tb, previewsDiv || host.firstChild);
@@ -1472,7 +1561,17 @@ function injectResults(stats, selectedId, available) {
       if (act === 'zoom-in') { applyZoom(view.scale * 1.2, canvas.clientWidth/2, canvas.clientHeight/2); drawMain(); return; }
       if (act === 'zoom-out') { applyZoom(view.scale / 1.2, canvas.clientWidth/2, canvas.clientHeight/2); drawMain(); return; }
       if (act === 'reset') { resetZoom(); drawMain(); return; }
-      if (act === 'export') { const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = `cutting-layout-sheet-${selectedSheetId || 1}.png`; a.click(); return; }
+      if (act === 'export') { 
+        const a = document.createElement('a'); 
+        a.href = canvas.toDataURL('image/png'); 
+        a.download = `cutting-layout-sheet-${selectedSheetId || 1}.png`; 
+        a.click(); 
+        return; 
+      }
+      if (act === 'export-pdf') { 
+        exportAllSheetsAsPDF(); 
+        return; 
+      }
     });
   })();
 
@@ -1523,6 +1622,7 @@ function selectSheetByIndex(idx) {
     if (k === '-' || k === '_') { applyZoom(view.scale / 1.2, canvas.clientWidth/2, canvas.clientHeight/2); drawMain(); e.preventDefault(); return; }
     if (k === '0') { resetZoom(); drawMain(); e.preventDefault(); return; }
     if (k === 's' || k === 'S') { const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = `cutting-layout-sheet-${selectedSheetId || 1}.png`; a.click(); e.preventDefault(); return; }
+    if (k === 'p' || k === 'P') { exportAllSheetsAsPDF(); e.preventDefault(); return; }
     if (k === '[') { nextSheet(-1); e.preventDefault(); return; }
     if (k === ']') { nextSheet(+1); e.preventDefault(); return; }
     if (k === '1' || k === '2' || k === '3' || k === '4' || k === '5' || k === '6' || k === '7' || k === '8' || k === '9') { selectSheetByIndex(Number(k)-1); e.preventDefault(); return; }
