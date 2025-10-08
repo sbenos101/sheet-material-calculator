@@ -33,6 +33,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const bladeInput = document.getElementById('blade-thickness');
   const offsetInput = document.getElementById('blade-offset');
   const unitSelect = document.getElementById('unit-type');
+  const MIN_DIMENSION_MM = 46;
+  const MIN_DIMENSION_VISIBILITY_MM = 46;
 
   const addAvailBtn = document.getElementById('add-available');
   const availAnchor = addAvailBtn.closest('div');
@@ -792,7 +794,7 @@ if (oversizedItems.length > 0) {
 };
 }
 
-  function drawSolution(ctx, width, height, solution, opts = {}) {
+function drawSolution(ctx, width, height, solution, opts = {}) {
     const margin = opts.margin ?? 20;
     const gutter = opts.gutter ?? 20;
     const flipY = opts.flipY ?? true;
@@ -806,60 +808,60 @@ if (oversizedItems.length > 0) {
     const baseLabels = [];
 
     if (required.length) {
-      for (const r of required) {
-        const base = r.label ?? `${fmtLenFromMM(r.width)}x${fmtLenFromMM(r.height)}`;
-        if (!counts.has(base)) baseLabels.push(base);
-        counts.set(base, (counts.get(base) || 0) + Math.max(1, r.quantity | 0));
-      }
+        for (const r of required) {
+            const base = r.label ?? `${fmtLenFromMM(r.width)}x${fmtLenFromMM(r.height)}`;
+            if (!counts.has(base)) baseLabels.push(base);
+            counts.set(base, (counts.get(base) || 0) + Math.max(1, r.quantity | 0));
+        }
     } else {
-      for (const s of solution.sheets) for (const p of s.placements) {
-        const base = (p.label || '').split(' #')[0];
-        if (!counts.has(base)) baseLabels.push(base);
-        counts.set(base, (counts.get(base) || 0) + 1);
-      }
+        for (const s of solution.sheets) for (const p of s.placements) {
+            const base = (p.label || '').split(' #')[0];
+            if (!counts.has(base)) baseLabels.push(base);
+            counts.set(base, (counts.get(base) || 0) + 1);
+        }
     }
 
     const labelColors = new Map();
     for (let i = 0; i < baseLabels.length; i++) {
-      const hue = (i * 137.508) % 360;
-      labelColors.set(baseLabels[i], `hsl(${hue} 65% 55%)`);
+        const hue = (i * 137.508) % 360;
+        labelColors.set(baseLabels[i], `hsl(${hue} 65% 55%)`);
     }
 
     const keysDiv = document.getElementById('keys');
     if (keysDiv && updateKeys) {
-      keysDiv.innerHTML = '';
-      const col = document.createElement('div');
-      col.style.display = 'flex';
-      col.style.flexDirection = 'column';
-      col.style.gap = '4px';
-      col.style.color = 'white';
-      for (const label of baseLabels) {
-        const color = labelColors.get(label);
-        const row = document.createElement('div');
-        row.style.backgroundColor = color;
-        row.style.padding = '6px';
-        row.style.borderRadius = '4px';
-        row.style.color = 'white !important';
-        row.innerHTML = `<strong>${label}</strong> (x${counts.get(label) || 0})`;
-        col.appendChild(row);
-      }
-      keysDiv.appendChild(col);
+        keysDiv.innerHTML = '';
+        const col = document.createElement('div');
+        col.style.display = 'flex';
+        col.style.flexDirection = 'column';
+        col.style.gap = '4px';
+        col.style.color = 'white';
+        for (const label of baseLabels) {
+            const color = labelColors.get(label);
+            const row = document.createElement('div');
+            row.style.backgroundColor = color;
+            row.style.padding = '6px';
+            row.style.borderRadius = '4px';
+            row.style.color = 'white !important';
+            row.innerHTML = `<strong>${label}</strong> (x${counts.get(label) || 0})`;
+            col.appendChild(row);
+        }
+        keysDiv.appendChild(col);
     }
 
     const sheetBoxes = [];
     const drawableW = width - 2 * margin;
     const drawableH = height - 2 * margin;
     for (const sheet of solution.sheets) {
-      const sx = drawableW / sheet.width;
-      const sy = drawableH / sheet.height;
-      const scale = Math.min(sx, sy);
-      sheetBoxes.push({ sheet, wPx: sheet.width * scale, hPx: sheet.height * scale, scale });
+        const sx = drawableW / sheet.width;
+        const sy = drawableH / sheet.height;
+        const scale = Math.min(sx, sy);
+        sheetBoxes.push({ sheet, wPx: sheet.width * scale, hPx: sheet.height * scale, scale });
     }
     const totalH = sheetBoxes.reduce((a, b, i) => a + b.hPx + (i ? gutter : 0), 0);
     const uniformScale = totalH + 2 * margin > height
-      ? (height - 2 * margin - (sheetBoxes.length - 1) * gutter) /
-        sheetBoxes.reduce((a, b) => a + b.hPx, 0)
-      : 1;
+        ? (height - 2 * margin - (sheetBoxes.length - 1) * gutter) /
+          sheetBoxes.reduce((a, b) => a + b.hPx, 0)
+        : 1;
 
     ctx.lineWidth = 1;
     ctx.font = '12px';
@@ -868,159 +870,188 @@ if (oversizedItems.length > 0) {
     let cursorY = margin;
 
     for (const box of sheetBoxes) {
-      const scale = box.scale * uniformScale;
-      const drawW = box.sheet.width * scale;
-      const drawH = box.sheet.height * scale;
-      const originX = (width - drawW) / 2;
-      const originY = cursorY;
+        const scale = box.scale * uniformScale;
+        const drawW = box.sheet.width * scale;
+        const drawH = box.sheet.height * scale;
+        const originX = (width - drawW) / 2;
+        const originY = cursorY;
 
-      if (!capturedGrid) {
-        window.__LAST_GRID_META__ = {
-          cols: box.sheet.width,
-          rows: box.sheet.height,
-          scale,
-          boardW: drawW,
-          boardH: drawH,
-        };
-        capturedGrid = true;
-      }
+        if (!capturedGrid) {
+            window.__LAST_GRID_META__ = {
+                cols: box.sheet.width,
+                rows: box.sheet.height,
+                scale,
+                boardW: drawW,
+                boardH: drawH,
+            };
+            capturedGrid = true;
+        }
 
-      if (showGrid) {
-        const nice = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
-        let minor = nice[0];
-        for (const n of nice) { if (n * scale >= gridTargetPx) { minor = n; break; } }
-        const maxLines = 2000;
-        const est = (box.sheet.width / minor) + (box.sheet.height / minor);
-        if (est > maxLines) { const f = Math.ceil(est / maxLines); minor *= f; }
-        const major = minor * (minor >= 50 ? 2 : 5);
+        if (showGrid) {
+            const nice = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
+            let minor = nice[0];
+            for (const n of nice) { if (n * scale >= gridTargetPx) { minor = n; break; } }
+            const maxLines = 2000;
+            const est = (box.sheet.width / minor) + (box.sheet.height / minor);
+            if (est > maxLines) { const f = Math.ceil(est / maxLines); minor *= f; }
+            const major = minor * (minor >= 50 ? 2 : 5);
+
+            ctx.save();
+            ctx.beginPath();
+            for (let gx = 0; gx <= box.sheet.width + 1e-9; gx += minor) {
+                const x = originX + gx * scale;
+                ctx.moveTo(x, originY);
+                ctx.lineTo(x, originY + drawH);
+            }
+            for (let gy = 0; gy <= box.sheet.height + 1e-9; gy += minor) {
+                const y = originY + gy * scale;
+                ctx.moveTo(originX, y);
+                ctx.lineTo(originX + drawW, y);
+            }
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.beginPath();
+            for (let gx = 0; gx <= box.sheet.width + 1e-9; gx += major) {
+                const x = originX + gx * scale;
+                ctx.moveTo(x, originY);
+                ctx.lineTo(x, originY + drawH);
+            }
+            for (let gy = 0; gy <= box.sheet.height + 1e-9; gy += major) {
+                const y = originY + gy * scale;
+                ctx.moveTo(originX, y);
+                ctx.lineTo(originX + drawW, y);
+            }
+            ctx.strokeStyle = '#bdbdbd';
+            ctx.lineWidth = 1.25;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        ctx.save();
+        ctx.strokeStyle = '#111';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(originX, originY, drawW, drawH);
+        ctx.restore();
 
         ctx.save();
         ctx.beginPath();
-        for (let gx = 0; gx <= box.sheet.width + 1e-9; gx += minor) {
-          const x = originX + gx * scale;
-          ctx.moveTo(x, originY);
-          ctx.lineTo(x, originY + drawH);
-        }
-        for (let gy = 0; gy <= box.sheet.height + 1e-9; gy += minor) {
-          const y = originY + gy * scale;
-          ctx.moveTo(originX, y);
-          ctx.lineTo(originX + drawW, y);
-        }
-        ctx.strokeStyle = '#e0e0e0';
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        ctx.rect(originX, originY, drawW, drawH);
+        ctx.clip();
 
-        ctx.beginPath();
-        for (let gx = 0; gx <= box.sheet.width + 1e-9; gx += major) {
-          const x = originX + gx * scale;
-          ctx.moveTo(x, originY);
-          ctx.lineTo(x, originY + drawH);
-        }
-        for (let gy = 0; gy <= box.sheet.height + 1e-9; gy += major) {
-          const y = originY + gy * scale;
-          ctx.moveTo(originX, y);
-          ctx.lineTo(originX + drawW, y);
-        }
-        ctx.strokeStyle = '#bdbdbd';
-        ctx.lineWidth = 1.25;
-        ctx.stroke();
-        ctx.restore();
-      }
+        for (const p of box.sheet.placements) {
+            const px = originX + p.x * scale;
+            const py = flipY ? originY + (box.sheet.height - p.y - p.h) * scale : originY + p.y * scale;
+            const pw = p.w * scale;
+            const ph = p.h * scale;
+            const base = (p.label || '').split(' #')[0];
 
-      ctx.save();
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(originX, originY, drawW, drawH);
-      ctx.restore();
+            ctx.fillStyle = labelColors.get(base) || '#6fa8dc';
+            ctx.fillRect(px, py, pw, ph);
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(originX, originY, drawW, drawH);
-      ctx.clip();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(px, py, pw, ph);
 
-      for (const p of box.sheet.placements) {
-        const px = originX + p.x * scale;
-        const py = flipY ? originY + (box.sheet.height - p.y - p.h) * scale : originY + p.y * scale;
-        const pw = p.w * scale;
-        const ph = p.h * scale;
-        const base = (p.label || '').split(' #')[0];
+            const showWidthDimension = p.w >= MIN_DIMENSION_VISIBILITY_MM;
+            const showHeightDimension = p.h >= MIN_DIMENSION_VISIBILITY_MM;
 
-        ctx.fillStyle = labelColors.get(base) || '#6fa8dc';
-        ctx.fillRect(px, py, pw, ph);
+            const wText = fmtLenFromMM(p.w);
+            const hText = fmtLenFromMM(p.h);
 
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(px, py, pw, ph);
+            const fontPx = Math.max(8, Math.min(12, Math.floor(Math.min(pw, ph) / 5)));
+            ctx.save();
+            ctx.fillStyle = '#000';
+            ctx.font = `bold ${fontPx}px`;
 
-        const wText = fmtLenFromMM(p.w);
-        const hText = fmtLenFromMM(p.h);
+  
+            if (showWidthDimension) {
+    ctx.save();
+    
+    const inset = 2; 
+    const wX = px + pw / 2;     
+    const wY = py + inset + 0;   
+    
+    ctx.beginPath();
+    ctx.rect(px, py, pw, ph);
+    ctx.clip();
 
-        const fontPx = Math.max(8, Math.min(12, Math.floor(Math.min(pw, ph) / 5)));
-        ctx.save();
-        ctx.fillStyle = '#000';
-        ctx.font = `bold ${fontPx}px`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#000';
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2;
+    const fontPx = Math.max(8, Math.min(12, Math.floor(Math.min(pw, ph) / 5)));
+    ctx.font = `bold ${fontPx}px`;
+    ctx.strokeText(wText, wX, wY);
+    ctx.fillText(wText, wX, wY);
 
-        if (updateKeys) {
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'top';
-          ctx.lineWidth = 2.5;
-          ctx.strokeStyle = 'rgba(255,255,255,.9)';
-          const wY = pw < 18 ? py - fontPx - 2 : py + 2;
-          ctx.strokeText(wText, px + pw / 2, wY);
-          ctx.fillText(wText, px + pw / 2, wY);
-        }
+    ctx.restore();
+}
 
 
-        if (updateKeys) {
-          ctx.save();
-          const hX = ph < 18 ? px + pw + fontPx + 2 : px + pw - 6;
-          ctx.translate(hX, py + ph / 2);
-          ctx.rotate(-Math.PI / 2);
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.lineWidth = 2.5;
-          ctx.strokeStyle = 'rgba(255,255,255,.9)';
-          ctx.strokeText(hText, 0, 0);
-          ctx.fillText(hText, 0, 0);
-          ctx.restore();
+if (showHeightDimension) {
+    ctx.save();
+
+    const inset = 6; 
+    const hX = px + pw - inset;  
+    const hY = py + ph / 2;  
+
+    ctx.beginPath();
+    ctx.rect(px, py, pw, ph);
+    ctx.clip();
+
+    ctx.translate(hX, hY);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#000';
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2;
+    const fontPx = Math.max(8, Math.min(12, Math.floor(Math.min(pw, ph) / 5)));
+    ctx.font = `bold ${fontPx}px`;
+    ctx.strokeText(hText, 0, 0);
+    ctx.fillText(hText, 0, 0);
+
+    ctx.restore();
+}
+            ctx.restore();
         }
         ctx.restore();
-      }
-      ctx.restore();
 
-      if (annotateSheetDims) {
-        const u = unitSuffix();
-        const widthLabel = `${fmtLenFromMM(box.sheet.width)} ${u}`;
-        const heightLabel = `${fmtLenFromMM(box.sheet.height)} ${u}`;
+        if (annotateSheetDims) {
+            const u = unitSuffix();
+            const widthLabel = `${fmtLenFromMM(box.sheet.width)} ${u}`;
+            const heightLabel = `${fmtLenFromMM(box.sheet.height)} ${u}`;
 
-        ctx.save();
-        ctx.fillStyle = '#222';
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        ctx.lineWidth = 3;
-        ctx.font = 'bold 12px';
+            ctx.save();
+            ctx.fillStyle = '#222';
+            ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+            ctx.lineWidth = 3;
+            ctx.font = 'bold 12px';
 
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        const topY = Math.max(0, originY - 6);
-        ctx.strokeText(widthLabel, originX + drawW / 2, topY);
-        ctx.fillText(widthLabel, originX + drawW / 2, topY);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            const topY = Math.max(0, originY - 6);
+            ctx.strokeText(widthLabel, originX + drawW / 2, topY);
+            ctx.fillText(widthLabel, originX + drawW / 2, topY);
 
-        ctx.save();
-        ctx.translate(originX + drawW + 6, originY + drawH / 2);
-        ctx.rotate(-Math.PI / 2);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.strokeText(heightLabel, 0, 0);
-        ctx.fillText(heightLabel, 0, 0);
-        ctx.restore();
+            ctx.save();
+            ctx.translate(originX + drawW + 6, originY + drawH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.strokeText(heightLabel, 0, 0);
+            ctx.fillText(heightLabel, 0, 0);
+            ctx.restore();
 
-        ctx.restore();
-      }
+            ctx.restore();
+        }
 
-      cursorY += drawH + gutter;
+        cursorY += drawH + gutter;
     }
-  }
-
+}
   function ensureHiDPIFor(cnv) {
     const rect = cnv.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -1046,7 +1077,7 @@ if (oversizedItems.length > 0) {
   function drawSingleSheet(ctx, width, height, fullSolution, sheet, opts = {}) {
     const one = { sheets: [sheet], unitName: fullSolution.unitName };
     drawSolution(ctx, width, height, one, opts);
-  }
+}
 
   function makeBlankSolutionFromAvailable(available, unit = 'mm') {
     let id = 1;
@@ -1449,131 +1480,164 @@ function injectResults(stats, selectedId, available) {
     injectResults(stats, selectedSheetId, available);
   }
 
-  function exportAllSheetsAsPDF() {
-  if (!window.jspdf || !window.jspdf.jsPDF) {
-    alert('jsPDF library failed to load. Please check your internet connection or try again later.');
-    return;
-  }
-
-  if (!lastSolution || !lastSolution.sheets.length) {
-    alert('No sheets available to export.');
-    return;
-  }
-
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  });
-
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 10; // mm
-  const pxToMm = 25.4 / 96; // Convert pixels to mm (assuming 96 DPI)
-
-  lastSolution.sheets.forEach((sheet, index) => {
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    const mainCanvas = document.getElementById('canvas');
-
-    if (!mainCanvas || mainCanvas.width === 0 || mainCanvas.height === 0) {
-      console.error('Main canvas is invalid or has zero dimensions');
-      alert('Cannot export PDF: Main canvas is invalid.');
-      tempCanvas.remove();
-      return;
+ function exportAllSheetsAsPDF() {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+        alert('jsPDF library failed to load. Please check your internet connection or try again later.');
+        return;
     }
 
-    const dpr = window.devicePixelRatio || 1;
-    tempCanvas.width = mainCanvas.width;
-    tempCanvas.height = mainCanvas.height;
-    tempCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!lastSolution || !lastSolution.sheets.length) {
+        alert('No sheets available to export.');
+        return;
+    }
 
-    drawSingleSheet(tempCtx, mainCanvas.clientWidth, mainCanvas.clientHeight, lastSolution, sheet, {
-      margin: 30,
-      gutter: 0,
-      flipY: true,
-      showGrid: true,
-      required: readRequired(),
-      gridTargetPx: 12,
-      updateKeys: true,
-      annotateSheetDims: true
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
     });
 
-    const imgData = tempCanvas.toDataURL('image/png');
-    if (imgData === 'data:,') {
-      console.error('Canvas is empty for sheet', sheet.id);
-      alert(`Failed to render sheet ${sheet.id}. The canvas is empty.`);
-      tempCanvas.remove();
-      return;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 15; 
+
+    lastSolution.sheets.forEach((sheet, index) => {
+        if (index > 0) {
+            pdf.addPage();
+        }
+
+  
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        const canvasWidth = 800;
+        const canvasHeight = 600;
+        
+        tempCanvas.width = canvasWidth;
+        tempCanvas.height = canvasHeight;
+        
+        tempCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        
+        drawSingleSheet(tempCtx, canvasWidth, canvasHeight, lastSolution, sheet, {
+            margin: 40,
+            gutter: 0,
+            flipY: true,
+            showGrid: true,
+            required: readRequired(),
+            gridTargetPx: 15,
+            updateKeys: true,
+            annotateSheetDims: true
+        });
+
+        const imgData = tempCanvas.toDataURL('image/png');
+        
+        if (imgData === 'data:,') {
+            console.error('Canvas is empty for sheet', sheet.id);
+            alert(`Failed to render sheet ${sheet.id}. The canvas is empty.`);
+            tempCanvas.remove();
+            return;
+        }
+
+        const maxImgWidth = pageWidth - 2 * margin;
+        const maxImgHeight = pageHeight - 2 * margin;
+        
+        let imgWidth = maxImgWidth;
+        let imgHeight = (canvasHeight / canvasWidth) * imgWidth;
+        
+        if (imgHeight > maxImgHeight) {
+            imgHeight = maxImgHeight;
+            imgWidth = (canvasWidth / canvasHeight) * imgHeight;
+        }
+
+        const x = (pageWidth - imgWidth) / 2;
+        const y = (pageHeight - imgHeight) / 2;
+
+        const u = unitSuffix();
+        pdf.setFontSize(14);
+        pdf.setFont(undefined, 'bold');
+        pdf.text(`Sheet ${sheet.id} (${fmtLenFromMM(sheet.width)} × ${fmtLenFromMM(sheet.height)} ${u})`, pageWidth / 2, margin - 5, { align: 'center' });
+
+        try {
+            pdf.addImage(imgData, 'PNG', x, y + 5, imgWidth, imgHeight);
+        } catch (error) {
+            console.error('Error adding image to PDF:', error);
+            alert(`Failed to add sheet ${sheet.id} to PDF. The image may be too large.`);
+        }
+
+        tempCanvas.remove();
+    });
+
+    try {
+        pdf.save('cutting-layout-all-sheets.pdf');
+    } catch (error) {
+        console.error('Error saving PDF:', error);
+        alert('Failed to save PDF. Please try again.');
     }
-
-    const sheetRatio = sheet.height / sheet.width;
-    let imgWidth = (pageWidth - 2 * margin) / pxToMm;
-    let imgHeight = imgWidth * sheetRatio;
-    if (imgHeight > (pageHeight - 2 * margin) / pxToMm) {
-      imgHeight = (pageHeight - 2 * margin) / pxToMm;
-      imgWidth = imgHeight / sheetRatio;
-    }
-
-    const x = (pageWidth - imgWidth * pxToMm) / 2;
-    const y = (pageHeight - imgHeight * pxToMm) / 2;
-
-    if (index > 0) {
-      pdf.addPage();
-    }
-
-    const u = unitSuffix();
-    pdf.setFontSize(12);
-    pdf.text(`Sheet ${sheet.id} (${fmtLenFromMM(sheet.width)}×${fmtLenFromMM(sheet.height)} ${u})`, pageWidth / 2, margin, { align: 'center' });
-
-    pdf.addImage(imgData, 'PNG', x, y, imgWidth * pxToMm, imgHeight * pxToMm);
-
-    tempCanvas.remove();
-  });
-
-  pdf.save('cutting-layout-all-sheets.pdf');
 }
   const ro = new ResizeObserver(() => render());
   ro.observe(canvas);
 
-  (function ensureToolbar() {
+(function ensureToolbar() {
     let tb = document.getElementById('canvas-toolbar');
     if (!tb) {
-      tb = document.createElement('div');
-      tb.id = 'canvas-toolbar';
-      tb.className = 'canvas-toolbar';
-      tb.innerHTML = `
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;justify-content:center;">
-          <button type="button" data-act="zoom-in" title="Zoom In (+)">+</button>
-          <button type="button" data-act="zoom-out" title="Zoom Out (-)">-</button>
-          <button type="button" data-act="reset" title="Reset View (0)">Reset</button>
-          <button type="button" data-act="export" title="Export Image (S)">Create Image</button>
-          <button type="button" data-act="export-pdf" title="Export All Sheets as PDF (P)">Create PDF</button>
-        </div>`;
-      const host = previewsDiv?.parentElement || document.body;
-      host.insertBefore(tb, previewsDiv || host.firstChild);
+        tb = document.createElement('div');
+        tb.id = 'canvas-toolbar';
+        tb.className = 'canvas-toolbar';
+        tb.innerHTML = `
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;justify-content:center;">
+                <button type="button" data-act="zoom-in" title="Zoom In (+)">+</button>
+                <button type="button" data-act="zoom-out" title="Zoom Out (-)">-</button>
+                <button type="button" data-act="reset" title="Reset View (0)">Reset</button>
+                <button type="button" data-act="export" title="Export Image (S)">Create Image</button>
+                <button type="button" data-act="export-pdf" title="Export All Sheets as PDF (P)">Create PDF</button>
+            </div>`;
+        const host = previewsDiv?.parentElement || document.body;
+        host.insertBefore(tb, previewsDiv || host.firstChild);
     }
 
     tb.addEventListener('click', (e) => {
-      const act = e.target?.dataset?.act;
-      if (!act) return;
-      if (act === 'zoom-in') { applyZoom(view.scale * 1.2, canvas.clientWidth/2, canvas.clientHeight/2); drawMain(); return; }
-      if (act === 'zoom-out') { applyZoom(view.scale / 1.2, canvas.clientWidth/2, canvas.clientHeight/2); drawMain(); return; }
-      if (act === 'reset') { resetZoom(); drawMain(); return; }
-      if (act === 'export') { 
-        const a = document.createElement('a'); 
-        a.href = canvas.toDataURL('image/png'); 
-        a.download = `cutting-layout-sheet-${selectedSheetId || 1}.png`; 
-        a.click(); 
-        return; 
-      }
-      if (act === 'export-pdf') { 
-        exportAllSheetsAsPDF(); 
-        return; 
-      }
+        const act = e.target?.dataset?.act;
+        if (!act) return;
+        
+        if (act === 'zoom-in') { 
+            applyZoom(view.scale * 1.2, canvas.clientWidth/2, canvas.clientHeight/2); 
+            drawMain(); 
+            return; 
+        }
+        if (act === 'zoom-out') { 
+            applyZoom(view.scale / 1.2, canvas.clientWidth/2, canvas.clientHeight/2); 
+            drawMain(); 
+            return; 
+        }
+        if (act === 'reset') { 
+            resetZoom(); 
+            drawMain(); 
+            return; 
+        }
+        if (act === 'export') { 
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            const mainCanvas = document.getElementById('canvas');
+            
+            tempCanvas.width = mainCanvas.width;
+            tempCanvas.height = mainCanvas.height;
+            tempCtx.drawImage(mainCanvas, 0, 0);
+            
+            const a = document.createElement('a'); 
+            a.href = tempCanvas.toDataURL('image/png'); 
+            a.download = `cutting-layout-sheet-${selectedSheetId || 1}.png`; 
+            a.click(); 
+            
+            tempCanvas.remove();
+            return; 
+        }
+        if (act === 'export-pdf') { 
+            exportAllSheetsAsPDF(); 
+            return; 
+        }
     });
-  })();
+})();
 
   canvas.addEventListener('wheel', (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
@@ -1611,9 +1675,9 @@ function selectSheetByIndex(idx) {
     const k = e.key;
 
     if (k === 'Shift') {
-      addAvailableRowAndFocus();
-      e.preventDefault();
-      return;
+        addAvailableRowAndFocus();
+        e.preventDefault();
+        return;
     }
 
     if (isInputTarget(e.target)) return;
@@ -1621,12 +1685,23 @@ function selectSheetByIndex(idx) {
     if (k === '=' || k === '+') { applyZoom(view.scale * 1.2, canvas.clientWidth/2, canvas.clientHeight/2); drawMain(); e.preventDefault(); return; }
     if (k === '-' || k === '_') { applyZoom(view.scale / 1.2, canvas.clientWidth/2, canvas.clientHeight/2); drawMain(); e.preventDefault(); return; }
     if (k === '0') { resetZoom(); drawMain(); e.preventDefault(); return; }
-    if (k === 's' || k === 'S') { const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = `cutting-layout-sheet-${selectedSheetId || 1}.png`; a.click(); e.preventDefault(); return; }
-    if (k === 'p' || k === 'P') { exportAllSheetsAsPDF(); e.preventDefault(); return; }
+    if (k === 's' || k === 'S') { 
+        const a = document.createElement('a'); 
+        a.href = canvas.toDataURL('image/png'); 
+        a.download = `cutting-layout-sheet-${selectedSheetId || 1}.png`; 
+        a.click(); 
+        e.preventDefault(); 
+        return; 
+    }
+    if (k === 'p' || k === 'P') { 
+        exportAllSheetsAsPDF(); 
+        e.preventDefault(); 
+        return; 
+    }
     if (k === '[') { nextSheet(-1); e.preventDefault(); return; }
     if (k === ']') { nextSheet(+1); e.preventDefault(); return; }
     if (k === '1' || k === '2' || k === '3' || k === '4' || k === '5' || k === '6' || k === '7' || k === '8' || k === '9') { selectSheetByIndex(Number(k)-1); e.preventDefault(); return; }
-  });
+});
 
   let _adjusting = false;
   function adjustCanvasToSheetAspect({ redraw = false } = {}) {
