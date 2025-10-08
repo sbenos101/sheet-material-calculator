@@ -1459,13 +1459,26 @@ function injectResults(stats, selectedId, available) {
         note = 'No pieces placed under current constraints; showing available sheets';
     }
 
-    toShow.sheets = toShow.sheets.filter(s => s.placements.length > 0 || !placedAny);
-    toShow.sheets.sort((a, b) => {
-        const aBlank = a.placements.length === 0;
-        const bBlank = b.placements.length === 0;
-        if (aBlank === bBlank) return a.id - b.id;
-        return aBlank ? 1 : -1;
-    });
+   toShow = makeBlankSolutionFromAvailable(available, currentUnit);
+toShow.meta = solution.meta;
+
+solution.sheets.forEach(solutionSheet => {
+    const matchingSheet = toShow.sheets.find(s => 
+        s.width === solutionSheet.width && 
+        s.height === solutionSheet.height && 
+        s.placements.length === 0
+    );
+    if (matchingSheet) {
+        matchingSheet.placements = [...solutionSheet.placements];
+    }
+});
+
+toShow.sheets.sort((a, b) => {
+    const aBlank = a.placements.length === 0;
+    const bBlank = b.placements.length === 0;
+    if (aBlank === bBlank) return a.id - b.id;
+    return aBlank ? 1 : -1;
+});
 
     lastSolution = toShow;
 
