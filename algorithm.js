@@ -1575,9 +1575,9 @@ toShow.sheets.sort((a, b) => {
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;justify-content:center;">
                 <button type="button" data-act="zoom-in" title="Zoom In (+)">+</button>
                 <button type="button" data-act="zoom-out" title="Zoom Out (-)">-</button>
-                <button type="button" data-act="reset" title="Reset View (0)">Reset</button>
-                <button type="button" data-act="export" title="Export Image (S)">Create Image</button>
-                <button type="button" data-act="export-pdf" title="Export All Sheets as PDF (P)">Create PDF</button>
+                <button type="button" data-act="reset" title="Reset View (+/-)">Reset</button>
+                <button type="button" data-act="export" title="Export Image">Create Image</button>
+                <button type="button" data-act="export-pdf" title="Export All Sheets as PDF">Create PDF</button>
             </div>`;
         const host = previewsDiv?.parentElement || document.body;
         host.insertBefore(tb, previewsDiv || host.firstChild);
