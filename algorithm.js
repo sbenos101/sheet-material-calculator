@@ -266,7 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return unit === 'in' ? 1 / 25.41 : 1; 
   }
 
-  function fmtLenFromMM(mm, dp = 2) {
+  function fmtLenFromMM(mm, dp = 3) {
     const unit = getSelectedUnit();
     const factor = mmToUnitFactor(unit);
     return fmt(mm * factor, unit === 'in' ? 2 : 0); 
@@ -275,7 +275,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function fmtAreaFromMM2(mm2, dp = 3) {
     const unit = getSelectedUnit();
     const factor = unit === 'in' ? 1 / (25.41 * 25.41) : 0.000001; 
-    return fmt(mm2 * factor, dp);
+    return fmt(mm2 * factor, dp = 3);
   }
 
   function unitSuffix() {
