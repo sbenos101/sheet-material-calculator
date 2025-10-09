@@ -1493,6 +1493,7 @@ toShow.sheets.sort((a, b) => {
     injectResults(stats, selectedSheetId, available);
   }
 
+ 
  function exportAllSheetsAsPDF() {
     if (!window.jspdf || !window.jspdf.jsPDF) {
         alert('jsPDF library failed to load. Please check your internet connection or try again later.');
@@ -1506,7 +1507,7 @@ toShow.sheets.sort((a, b) => {
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({
-        orientation: 'portrait',
+        orientation: 'landscape',
         unit: 'mm',
         format: 'a4'
     });
@@ -1520,12 +1521,11 @@ toShow.sheets.sort((a, b) => {
             pdf.addPage();
         }
 
-  
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         
-        const canvasWidth = 800;
-        const canvasHeight = 600;
+        const canvasWidth = 2400;
+        const canvasHeight = 1800;
         
         tempCanvas.width = canvasWidth;
         tempCanvas.height = canvasHeight;
@@ -1533,17 +1533,17 @@ toShow.sheets.sort((a, b) => {
         tempCtx.clearRect(0, 0, canvasWidth, canvasHeight);
         
         drawSingleSheet(tempCtx, canvasWidth, canvasHeight, lastSolution, sheet, {
-            margin: 40,
+            margin: 80,
             gutter: 0,
             flipY: true,
             showGrid: true,
             required: readRequired(),
-            gridTargetPx: 15,
+            gridTargetPx: 25,
             updateKeys: true,
             annotateSheetDims: true
         });
 
-        const imgData = tempCanvas.toDataURL('image/png');
+        const imgData = tempCanvas.toDataURL('image/png', 1.0);
         
         if (imgData === 'data:,') {
             console.error('Canvas is empty for sheet', sheet.id);
@@ -1553,7 +1553,7 @@ toShow.sheets.sort((a, b) => {
         }
 
         const maxImgWidth = pageWidth - 2 * margin;
-        const maxImgHeight = pageHeight - 2 * margin;
+        const maxImgHeight = pageHeight - 2 * margin - 10;
         
         let imgWidth = maxImgWidth;
         let imgHeight = (canvasHeight / canvasWidth) * imgWidth;
@@ -1564,7 +1564,7 @@ toShow.sheets.sort((a, b) => {
         }
 
         const x = (pageWidth - imgWidth) / 2;
-        const y = (pageHeight - imgHeight) / 2;
+        const y = (pageHeight - imgHeight) / 2 + 5;
 
         const u = unitSuffix();
         pdf.setFontSize(14);
@@ -1572,7 +1572,7 @@ toShow.sheets.sort((a, b) => {
         pdf.text(`Sheet ${sheet.id} (${fmtLenFromMM(sheet.width)} × ${fmtLenFromMM(sheet.height)} ${u})`, pageWidth / 2, margin - 5, { align: 'center' });
 
         try {
-            pdf.addImage(imgData, 'PNG', x, y + 5, imgWidth, imgHeight);
+            pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight, undefined, 'FAST');
         } catch (error) {
             console.error('Error adding image to PDF:', error);
             alert(`Failed to add sheet ${sheet.id} to PDF. The image may be too large.`);
