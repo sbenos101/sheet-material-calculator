@@ -2,31 +2,6 @@
 
 <script>
 
-function getSelectedUnit() { return 'mm'; }
-
-function mmToUnitFactor(unit) { return 1; }
-
-function fmtLenFromMM(mm) {
-  return fmt(mm, 0);
-}
-
-function fmtAreaFromMM2(mm2) {
-  const f = 0.000001;
-  const dp = 3;
-  return fmt(mm2 * f, dp);
-}
-
-function unitSuffix() { return getSelectedUnit(); }
-
-function unitAreaSuffix() {
-  return 'm²';
-}
-
-function updateUnitsUIBadges() {
-  const u = unitSuffix();
-  document.querySelectorAll('.unit').forEach(el => { el.textContent = u; });
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
