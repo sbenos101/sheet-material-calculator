@@ -941,27 +941,27 @@ function drawSolution(ctx, width, height, solution, opts = {}) {
 
   
             if (showWidthDimension) {
-    ctx.save();
+            ctx.save();
     
-    const inset = 2; 
-    const wX = px + pw / 2;     
-    const wY = py + inset + 0;   
+             const inset = 2; 
+             const wX = px + pw / 2;     
+             const wY = py + inset + 0;   
     
-    ctx.beginPath();
-    ctx.rect(px, py, pw, ph);
-    ctx.clip();
+            ctx.beginPath();
+            ctx.rect(px, py, pw, ph);
+            ctx.clip();
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = '#000';
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-    ctx.lineWidth = 2;
-    const fontPx = Math.max(8, Math.min(12, Math.floor(Math.min(pw, ph) / 5)));
-    ctx.font = `bold ${fontPx}px`;
-    ctx.strokeText(wText, wX, wY);
-    ctx.fillText(wText, wX, wY);
+           ctx.textAlign = 'center';
+           ctx.textBaseline = 'top';
+           ctx.fillStyle = '#000';
+           ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+           ctx.lineWidth = 2;
+           const fontPx = Math.max(8, Math.min(12, Math.floor(Math.min(pw, ph) / 5)));
+           ctx.font = `bold ${fontPx}px`;
+           ctx.strokeText(wText, wX, wY);
+           ctx.fillText(wText, wX, wY);
 
-    ctx.restore();
+           ctx.restore();
 }
 
 
@@ -1556,7 +1556,7 @@ toShow.sheets.sort((a, b) => {
     });
 
     try {
-        pdf.save('cutting-layout-all-sheets.pdf');
+        pdf.save('cwberry-cutting-layout.pdf');
     } catch (error) {
         console.error('Error saving PDF:', error);
         alert('Failed to save PDF. Please try again.');
