@@ -257,7 +257,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  let lastUnit = 'mm'; 
 
   function getSelectedUnit() {
     return unitSelect?.value || 'mm';
