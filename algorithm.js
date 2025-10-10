@@ -1498,13 +1498,12 @@ toShow.sheets.sort((a, b) => {
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         
-        const canvasWidth = 2400;
-        const canvasHeight = 1800;
-        
-        tempCanvas.width = canvasWidth;
-        tempCanvas.height = canvasHeight;
-        
-        tempCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+        const scale = 4;
+        const canvasWidth = 1200;
+        const canvasHeight = 848;
+        tempCanvas.width = canvasWidth * scale;
+        tempCanvas.height = canvasHeight * scale;
+        tempCtx.scale(scale, scale);
         
         drawSingleSheet(tempCtx, canvasWidth, canvasHeight, lastSolution, sheet, {
             margin: 80,
