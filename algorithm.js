@@ -458,23 +458,14 @@ if (oversizedItems.length > 0) {
 
     const sheetDims = available.map(sheet => innerDims(sheet));
 
-    const packItems = items.map(it => {
-    let kerfW = GHOST_KERF;
-    let kerfH = GHOST_KERF;
-
-    for (const { W, H } of sheetDims) {
-    if (Math.abs(it.w - W) <= EPS) kerfW = 0;
-    if (Math.abs(it.h - H) <= EPS) kerfH = 0;
-  }
-
-  return {
-    ...it,
-    w: it.w + kerfW,
-    h: it.h + kerfH,
-    origW: it.w,
-    origH: it.h
-  };
-});
+    const packItems = items.map(it => ({
+  ...it,
+  w: it.w + GHOST_KERF,
+  h: it.h + GHOST_KERF,
+  origW: it.w,
+  origH: it.h,
+}));
+    
 
     function scoreFragmentation(freeRects) {
       let perim = 0;
