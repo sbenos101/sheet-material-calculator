@@ -1610,16 +1610,20 @@ toShow.sheets.sort((a, b) => {
             
             tempCanvas.width = mainCanvas.width;
             tempCanvas.height = mainCanvas.height;
+            
+            tempCtx.fillStyle = '#ffffff';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
             tempCtx.drawImage(mainCanvas, 0, 0);
             
             const a = document.createElement('a'); 
-            a.href = tempCanvas.toDataURL('image/png'); 
-            a.download = `cutting-layout-sheet-${selectedSheetId || 1}.png`; 
+            a.href = tempCanvas.toDataURL('image/jpeg', 1); 
+            a.download = `cutting-layout-sheet-${selectedSheetId || 1}.jpg`; 
             a.click(); 
             
             tempCanvas.remove();
             return; 
         }
+
         if (act === 'export-pdf') { 
             exportAllSheetsAsPDF(); 
             return; 
