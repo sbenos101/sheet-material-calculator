@@ -301,6 +301,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+    let lastUnit = getSelectedUnit();
+  
   unitSelect?.addEventListener('change', () => {
     const newUnit = getSelectedUnit();
     if (newUnit !== lastUnit) {
