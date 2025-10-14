@@ -1518,7 +1518,7 @@ toShow.sheets.sort((a, b) => {
             annotateSheetDims: true
         });
 
-        const imgData = tempCanvas.toDataURL('image/png', 1.0);
+        const imgData = tempCanvas.toDataURL('image/jpeg', 1);
         
         if (imgData === 'data:,') {
             console.error('Canvas is empty for sheet', sheet.id);
@@ -1547,7 +1547,7 @@ toShow.sheets.sort((a, b) => {
         pdf.text(`Sheet ${sheet.id} (${fmtLenFromMM(sheet.width)} × ${fmtLenFromMM(sheet.height)} ${u})`, pageWidth / 2, margin - 5, { align: 'center' });
 
         try {
-            pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight, undefined, 'FAST');
+            pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight, undefined, 'FAST');
         } catch (error) {
             console.error('Error adding image to PDF:', error);
             alert(`Failed to add sheet ${sheet.id} to PDF. The image may be too large.`);
@@ -1679,8 +1679,8 @@ function selectSheetByIndex(idx) {
     if (k === '0') { resetZoom(); drawMain(); e.preventDefault(); return; }
     if (k === 's' || k === 'S') { 
         const a = document.createElement('a'); 
-        a.href = canvas.toDataURL('image/png'); 
-        a.download = `cutting-layout-sheet-${selectedSheetId || 1}.png`; 
+        a.href = canvas.toDataURL('image/jpeg', 1); 
+        a.download = `cutting-layout-sheet-${selectedSheetId || 1}.jpeg`; 
         a.click(); 
         e.preventDefault(); 
         return; 
