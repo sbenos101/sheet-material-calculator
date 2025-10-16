@@ -1079,7 +1079,7 @@ if (showHeightDimension) {
 
     const innerArea = (w, h, edge) => Math.max(0, (w - 2 * edge)) * Math.max(0, (h - 2 * edge));
 
-    function countCuts(sheet) {
+  function countCuts(sheet) {
     const placements = sheet.placements;
     if (placements.length === 0) return 0;
 
@@ -1097,6 +1097,20 @@ if (showHeightDimension) {
 
     const horizontalCuts = new Map();
     const verticalCuts = new Map();
+
+    let edgeCuts = 0;
+    if (edgeClearance > EPS && placements.length > 0) {
+   
+        const hasTop = placements.some(p => Math.abs(p.y - sheetInnerY1) < EPS);
+        const hasBottom = placements.some(p => Math.abs((p.y + p.h) - sheetInnerY2) < EPS);
+        const hasLeft = placements.some(p => Math.abs(p.x - sheetInnerX1) < EPS);
+        const hasRight = placements.some(p => Math.abs((p.x + p.w) - sheetInnerX2) < EPS);
+        
+        if (hasTop) edgeCuts++;
+        if (hasBottom) edgeCuts++;
+        if (hasLeft) edgeCuts++;
+        if (hasRight) edgeCuts++;
+    }
 
     for (const p of placements) {
         const x1 = p.x;
@@ -1205,13 +1219,12 @@ if (showHeightDimension) {
         return merged;
     }
 
-    let totalCuts = 0;
+    let totalCuts = edgeCuts;
     totalCuts += countCutsWithKerfMerging(horizontalCuts);
     totalCuts += countCutsWithKerfMerging(verticalCuts);
 
     return totalCuts;
 }
-
     let sumSheetArea = 0, sumInnerArea = 0, sumUsedArea = 0, sumPlacements = 0;
     
     for (const s of solution.sheets) {
