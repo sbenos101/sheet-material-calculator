@@ -125,7 +125,6 @@ h2 { pointer-events: none; }
 @media (max-width: 1024px) {
   .columns h2 { width: fit-content; text-align: left; font-size: 28px; line-height: 34px; font-weight: 700; }
   .top-banner-padding { padding: 125px 0; }
-  .overlay-heading h1 { font-size: 60px; line-height: 68px; }
   .materials-selector .pagebuilder-column { width: 47% !important; }
   .materials-selector .pagebuilder-column-line { flex-wrap: wrap !important; }
   .canvas-toolbar { margin: 0 0 15px; }
@@ -161,9 +160,8 @@ h2 { pointer-events: none; }
   .pagebuilder-button-primary span { display: none !important; }
   .pagebuilder-button-primary:after { margin: 0 !important; }
   .category-thumb { width: 50px; height: 50px; flex: 0 0 50px; }
-  .top-banner-padding { padding: 90px 0; }
   .overlay-heading h1 { font-size: 46px; line-height: 52px; }
-  #cwberry-logo-green-white-background { width: min(120px, 100%); height: auto; }
+  #cwberry-logo-green-white-background { width: min(120px); height: auto; }
   .hide-on-mobile { display: none; }
   #keys { min-height: 0; }
   .input-direction { flex-direction: column } 
