@@ -1059,7 +1059,7 @@ if (showHeightDimension) {
     return Number(n.toFixed(dp));
   }
 
-  function computeStats(solution, available, required, metaNote = '') {
+ function computeStats(solution, available, required, metaNote = '') {
     const res = {
         timestamp: new Date().toISOString(),
         unit: solution.unitName || 'mm',
@@ -1073,21 +1073,159 @@ if (showHeightDimension) {
         by_label: [],
         per_sheet: [],
         warnings: solution.meta?.warnings || [],
-        notes: metaNote ? [metaNote] : []
+        notes: metaNote ? [metaNote] : [],
+        cuts_total: 0
     };
 
     const innerArea = (w, h, edge) => Math.max(0, (w - 2 * edge)) * Math.max(0, (h - 2 * edge));
 
+    function countCuts(sheet) {
+    const placements = sheet.placements;
+    if (placements.length === 0) return 0;
+
+    const EPS = 1e-3;
+    const edgeClearance = res.edgeClearance || 0;
+    const kerf = res.kerf || 0;
+    const sheetInnerX1 = edgeClearance;
+    const sheetInnerY1 = edgeClearance;
+    const sheetInnerX2 = sheet.width - edgeClearance;
+    const sheetInnerY2 = sheet.height - edgeClearance;
+
+    const isOnSheetEdge = (coord, sheetMin, sheetMax) => {
+        return Math.abs(coord - sheetMin) < EPS || Math.abs(coord - sheetMax) < EPS;
+    };
+
+    const horizontalCuts = new Map();
+    const verticalCuts = new Map();
+
+    for (const p of placements) {
+        const x1 = p.x;
+        const y1 = p.y;
+        const x2 = p.x + p.w;
+        const y2 = p.y + p.h;
+
+        if (!isOnSheetEdge(y1, sheetInnerY1, sheetInnerY2)) {
+            const key = Math.round(y1 * 1000);
+            if (!horizontalCuts.has(key)) {
+                horizontalCuts.set(key, { y: y1, segments: [] });
+            }
+            horizontalCuts.get(key).segments.push({ x1, x2 });
+        }
+
+        if (!isOnSheetEdge(y2, sheetInnerY1, sheetInnerY2)) {
+            const key = Math.round(y2 * 1000);
+            if (!horizontalCuts.has(key)) {
+                horizontalCuts.set(key, { y: y2, segments: [] });
+            }
+            horizontalCuts.get(key).segments.push({ x1, x2 });
+        }
+
+        if (!isOnSheetEdge(x1, sheetInnerX1, sheetInnerX2)) {
+            const key = Math.round(x1 * 1000);
+            if (!verticalCuts.has(key)) {
+                verticalCuts.set(key, { x: x1, segments: [] });
+            }
+            verticalCuts.get(key).segments.push({ y1, y2 });
+        }
+
+        if (!isOnSheetEdge(x2, sheetInnerX1, sheetInnerX2)) {
+            const key = Math.round(x2 * 1000);
+            if (!verticalCuts.has(key)) {
+                verticalCuts.set(key, { x: x2, segments: [] });
+            }
+            verticalCuts.get(key).segments.push({ y1, y2 });
+        }
+    }
+
+    function countCutsWithKerfMerging(cutsMap) {
+        const sortedKeys = Array.from(cutsMap.keys()).sort((a, b) => a - b);
+        let totalCuts = 0;
+        let i = 0;
+        
+        while (i < sortedKeys.length) {
+            const currentKey = sortedKeys[i];
+            const currentCut = cutsMap.get(currentKey);
+            let allSegments = [...currentCut.segments];
+            
+            let j = i + 1;
+            while (j < sortedKeys.length) {
+                const nextKey = sortedKeys[j];
+                const nextCut = cutsMap.get(nextKey);
+                const currentVal = currentCut.y !== undefined ? currentCut.y : currentCut.x;
+                const nextVal = nextCut.y !== undefined ? nextCut.y : nextCut.x;
+                
+                if (Math.abs(nextVal - currentVal) <= kerf + EPS) {
+                    allSegments.push(...nextCut.segments);
+                    j++;
+                } else {
+                    break;
+                }
+            }
+            
+            const mergedSegments = mergeOverlappingSegments(allSegments);
+            totalCuts += mergedSegments.length;
+            
+            i = j;
+        }
+        
+        return totalCuts;
+    }
+
+    function mergeOverlappingSegments(segments) {
+        if (segments.length === 0) return [];
+        
+        segments.sort((a, b) => {
+            const aStart = a.x1 !== undefined ? a.x1 : a.y1;
+            const bStart = b.x1 !== undefined ? b.x1 : b.y1;
+            return aStart - bStart;
+        });
+
+        const merged = [];
+        let current = { ...segments[0] };
+
+        for (let i = 1; i < segments.length; i++) {
+            const seg = segments[i];
+            const currentEnd = current.x2 !== undefined ? current.x2 : current.y2;
+            const segStart = seg.x1 !== undefined ? seg.x1 : seg.y1;
+            const segEnd = seg.x2 !== undefined ? seg.x2 : seg.y2;
+
+            if (segStart <= currentEnd + kerf + EPS) {
+                if (current.x2 !== undefined) {
+                    current.x2 = Math.max(currentEnd, segEnd);
+                } else {
+                    current.y2 = Math.max(currentEnd, segEnd);
+                }
+            } else {
+                merged.push(current);
+                current = { ...seg };
+            }
+        }
+        merged.push(current);
+        
+        return merged;
+    }
+
+    let totalCuts = 0;
+    totalCuts += countCutsWithKerfMerging(horizontalCuts);
+    totalCuts += countCutsWithKerfMerging(verticalCuts);
+
+    return totalCuts;
+}
+
     let sumSheetArea = 0, sumInnerArea = 0, sumUsedArea = 0, sumPlacements = 0;
+    
     for (const s of solution.sheets) {
         const sheetArea = s.width * s.height;
         const innerA = innerArea(s.width, s.height, res.edgeClearance || 0);
         const usedA = s.placements.reduce((a, p) => a + p.w * p.h, 0);
         const usedCount = s.placements.length;
+        const cuts = countCuts(s);
+        
         sumSheetArea += sheetArea;
         sumInnerArea += innerA;
         sumUsedArea += usedA;
         sumPlacements += usedCount;
+        res.cuts_total += cuts;
 
         const labelCounts = new Map();
         for (const p of s.placements) {
@@ -1105,6 +1243,7 @@ if (showHeightDimension) {
             area_waste_inner: Math.max(0, innerA - usedA),
             utilisation_inner_pct: innerA > 0 ? (usedA / innerA) * 100 : 0,
             placements: usedCount,
+            cuts: cuts,
             label_breakdown: Array.from(labelCounts.entries()).map(([base, qty]) => ({ base, qty }))
         });
     }
@@ -1188,14 +1327,15 @@ function injectResults(stats, selectedId, available) {
 
     const t = stats.totals;
     const totalPairs = [
-        ['Sheets (Used / Total):', `${stats.sheets_used_nonempty} / ${stats.sheets_total}`],
-        ['Number of Parts:', String(t.pieces_placed)],
-        ['Parts Unplaced:', String(t.pieces_unplaced)],
-        ['Square of Parts:', `${fmtAreaFromMM2(t.area_used_total)} ${u2}`],
-        ['Usable Area (Inner):', `${fmtAreaFromMM2(t.area_inner_total)} ${u2}`],
-        ['Square of Waste:', `${fmtAreaFromMM2(t.area_waste_inner_total)} ${u2}`],
-        ['Utilisation:', `${fmt(t.utilisation_inner_total_pct)} %`],
-        ['Kerf / Edge:', `${fmtLenFromMM(stats.kerf || 0)} ${u} / ${fmtLenFromMM(stats.edgeClearance || 0)} ${u}`],
+    ['Sheets (Used / Total):', `${stats.sheets_used_nonempty} / ${stats.sheets_total}`],
+    ['Number of Parts:', String(t.pieces_placed)],
+    ['Parts Unplaced:', String(t.pieces_unplaced)],
+    ['Total Cuts Required:', String(stats.cuts_total)], 
+    ['Square of Parts:', `${fmtAreaFromMM2(t.area_used_total)} ${u2}`],
+    ['Usable Area (Inner):', `${fmtAreaFromMM2(t.area_inner_total)} ${u2}`],
+    ['Square of Waste:', `${fmtAreaFromMM2(t.area_waste_inner_total)} ${u2}`],
+    ['Utilisation:', `${fmt(t.utilisation_inner_total_pct)} %`],
+    ['Kerf / Edge:', `${fmtLenFromMM(stats.kerf || 0)} ${u} / ${fmtLenFromMM(stats.edgeClearance || 0)} ${u}`],
     ];
     el.appendChild(makePanel('Total', totalPairs));
 
@@ -1233,13 +1373,14 @@ function injectResults(stats, selectedId, available) {
     const chosen = stats.per_sheet.find(s => s.id === selectedId) || stats.per_sheet[0];
     if (chosen) {
         const sheetPairs = [
-            ['Sheet Size:', `${fmtLenFromMM(chosen.width)} × ${fmtLenFromMM(chosen.height)} ${u}`],
-            ['Number of Parts:', String(chosen.placements)],
-            ['Square of Sheet (Usable):', `${fmtAreaFromMM2(chosen.area_inner)} ${u2}`],
-            ['Square of Parts:', `${fmtAreaFromMM2(chosen.area_used)} ${u2}`],
-            ['Square of Waste:', `${fmtAreaFromMM2(chosen.area_waste_inner)} ${u2}`],
-            ['Utilisation:', `${fmt(chosen.utilisation_inner_pct)} %`],
-        ];
+    ['Sheet Size:', `${fmtLenFromMM(chosen.width)} × ${fmtLenFromMM(chosen.height)} ${u}`],
+    ['Number of Parts:', String(chosen.placements)],
+    ['Cuts Required:', String(chosen.cuts || 0)],  
+    ['Square of Sheet (Usable):', `${fmtAreaFromMM2(chosen.area_inner)} ${u2}`],
+    ['Square of Parts:', `${fmtAreaFromMM2(chosen.area_used)} ${u2}`],
+    ['Square of Waste:', `${fmtAreaFromMM2(chosen.area_waste_inner)} ${u2}`],
+    ['Utilisation:', `${fmt(chosen.utilisation_inner_pct)} %`],
+    ];
         el.appendChild(makePanel(`Sheet ${chosen.id}`, sheetPairs));
     } else {
         const note = document.createElement('div');
