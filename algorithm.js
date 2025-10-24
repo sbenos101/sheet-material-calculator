@@ -1647,6 +1647,9 @@ toShow.sheets.sort((a, b) => {
         tempCanvas.width = canvasWidth * scale;
         tempCanvas.height = canvasHeight * scale;
         tempCtx.scale(scale, scale);
+
+        tempCtx.fillStyle = '#ffffff';
+        tempCtx.fillRect(0, 0, canvasWidth, canvasHeight);
         
         drawSingleSheet(tempCtx, canvasWidth, canvasHeight, lastSolution, sheet, {
             margin: 80,
