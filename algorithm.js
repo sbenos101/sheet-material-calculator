@@ -1700,6 +1700,48 @@ toShow.sheets.sort((a, b) => {
         tempCanvas.remove();
     });
 
+    const available = readAvailable();
+    const required = readRequired();
+    const stats = computeStats(lastSolution, available, required, '');
+    
+    pdf.addPage();
+    
+    const u = unitSuffix();
+    const u2 = unitAreaSuffix();
+    const t = stats.totals;
+    
+    pdf.setFontSize(18);
+    pdf.setFont(undefined, 'bold');
+    pdf.text('Summary', pageWidth / 2, 30, { align: 'center' });
+    
+    let yPos = 50;
+    const lineHeight = 8;
+    const labelX = 40;
+    const valueX = 180;
+    
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    
+    const summaryData = [
+        ['Sheets (Used / Total):', `${stats.sheets_used_nonempty} / ${stats.sheets_total}`],
+        ['Number of Parts:', String(t.pieces_placed)],
+        ['Parts Unplaced:', String(t.pieces_unplaced)],
+        ['Total Cuts Required:', String(stats.cuts_total)],
+        ['Square of Parts:', `${fmtAreaFromMM2(t.area_used_total)} ${u2}`],
+        ['Usable Area (Inner):', `${fmtAreaFromMM2(t.area_inner_total)} ${u2}`],
+        ['Square of Waste:', `${fmtAreaFromMM2(t.area_waste_inner_total)} ${u2}`],
+        ['Utilisation:', `${fmt(t.utilisation_inner_total_pct)} %`],
+        ['Kerf / Edge:', `${fmtLenFromMM(stats.kerf || 0)} ${u} / ${fmtLenFromMM(stats.edgeClearance || 0)} ${u}`]
+    ];
+    
+    summaryData.forEach(([label, value]) => {
+        pdf.setFont(undefined, 'normal');
+        pdf.text(label, labelX, yPos);
+        pdf.setFont(undefined, 'bold');
+        pdf.text(value, valueX, yPos);
+        yPos += lineHeight;
+    });
+
     try {
         pdf.save('cwberry-cutting-layout.pdf');
     } catch (error) {
