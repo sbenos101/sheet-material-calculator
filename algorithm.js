@@ -1228,10 +1228,6 @@ if (showHeightDimension) {
         }
 
         function countIntersections(horizontalSegs, verticalSegs) {
-            console.log('Sheet inner bounds: Y1=' + sheetInnerY1 + ' Y2=' + sheetInnerY2 + ' X1=' + sheetInnerX1 + ' X2=' + sheetInnerX2);
-            console.log('EPS=' + EPS);
-            
-            // Find the leftmost and rightmost vertical cuts
             let minVerticalX = Infinity;
             let maxVerticalX = -Infinity;
             for (const v of verticalSegs) {
@@ -1239,7 +1235,6 @@ if (showHeightDimension) {
                 maxVerticalX = Math.max(maxVerticalX, v.coord);
             }
             
-            // Find the topmost and bottommost horizontal cuts
             let minHorizontalY = Infinity;
             let maxHorizontalY = -Infinity;
             for (const h of horizontalSegs) {
@@ -1248,8 +1243,43 @@ if (showHeightDimension) {
             }
             
             let intersectionCount = 0;
-            
-            // Check each vertical cut
+                
+            const allVerticalsAtBoundary = verticalSegs.every(v => 
+                Math.abs(v.coord - minVerticalX) < EPS || Math.abs(v.coord - maxVerticalX) < EPS
+            );
+            const allHorizontalsAtBoundary = horizontalSegs.every(h => 
+                Math.abs(h.coord - minHorizontalY) < EPS || Math.abs(h.coord - maxHorizontalY) < EPS
+            );
+
+            if (allVerticalsAtBoundary && allHorizontalsAtBoundary && verticalSegs.length > 0 && horizontalSegs.length > 0) {
+                for (const v of verticalSegs) {
+                    for (const h of horizontalSegs) {
+                        const hIntersectsV = v.coord >= h.start - EPS && v.coord <= h.end + EPS;
+                        const vIntersectsH = h.coord >= v.start - EPS && h.coord <= v.end + EPS;
+                        
+                        if (hIntersectsV && vIntersectsH) {
+                            const isAtSheetCorner = (Math.abs(v.coord - sheetInnerX1) < EPS || Math.abs(v.coord - sheetInnerX2) < EPS) &&
+                                                    (Math.abs(h.coord - sheetInnerY1) < EPS || Math.abs(h.coord - sheetInnerY2) < EPS);
+                            
+                            if (!isAtSheetCorner) {
+                                const vAtMin = Math.abs(v.coord - minVerticalX) < EPS;
+                                const vAtMax = Math.abs(v.coord - maxVerticalX) < EPS;
+                                const hAtMin = Math.abs(h.coord - minHorizontalY) < EPS;
+                                const hAtMax = Math.abs(h.coord - maxHorizontalY) < EPS;
+                                
+                                const isGridEdge = (vAtMin && hAtMax) || (vAtMax && hAtMin) || (vAtMax && hAtMax);
+                                
+                                if (!isGridEdge) {
+                                    intersectionCount++;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                return intersectionCount;
+            }
+
             for (const v of verticalSegs) {
                 const isAtBoundary = Math.abs(v.coord - minVerticalX) < EPS || 
                                      Math.abs(v.coord - maxVerticalX) < EPS;
@@ -1260,7 +1290,6 @@ if (showHeightDimension) {
                 
                 const isVerticalContinuous = isAtBoundary && touchesTopExtent && touchesBottomExtent;
                 
-                // Count how many horizontal cuts this vertical cut crosses
                 let crossingCount = 0;
                 for (const h of horizontalSegs) {
                     const hIntersectsV = v.coord >= h.start - EPS && v.coord <= h.end + EPS;
@@ -1271,30 +1300,22 @@ if (showHeightDimension) {
                     }
                 }
                 
-                console.log('Vertical at x=' + v.coord + ' | atBoundary=' + isAtBoundary + 
-                           ' | continuous=' + isVerticalContinuous + ' | crossings=' + crossingCount);
-                
-                // If not continuous and crosses multiple horizontal cuts, add (crossings - 1) intersections
                 if (!isVerticalContinuous && crossingCount >= 2) {
                     const addedIntersections = crossingCount - 1;
                     intersectionCount += addedIntersections;
-                    console.log('  -> Adding ' + addedIntersections + ' intersections');
                 }
             }
             
-            // Now check horizontal cuts for intersections
             for (const h of horizontalSegs) {
                 const isAtBoundary = Math.abs(h.coord - minHorizontalY) < EPS || 
                                      Math.abs(h.coord - maxHorizontalY) < EPS;
                 
-                // Count how many INTERNAL vertical cuts this horizontal cut crosses
                 let internalCrossings = 0;
                 for (const v of verticalSegs) {
                     const hIntersectsV = v.coord >= h.start - EPS && v.coord <= h.end + EPS;
                     const vIntersectsH = h.coord >= v.start - EPS && h.coord <= v.end + EPS;
                     
                     if (hIntersectsV && vIntersectsH) {
-                        // Check if this is an internal vertical cut
                         const isVerticalAtBoundary = Math.abs(v.coord - minVerticalX) < EPS || 
                                                      Math.abs(v.coord - maxVerticalX) < EPS;
                         if (!isVerticalAtBoundary) {
@@ -1303,19 +1324,11 @@ if (showHeightDimension) {
                     }
                 }
                 
-                console.log('Horizontal at y=' + h.coord + ' | atBoundary=' + isAtBoundary + 
-                           ' | internal crossings=' + internalCrossings);
-                
-                // If this horizontal is NOT the topmost, it might add intersections
                 const isTopmost = Math.abs(h.coord - minHorizontalY) < EPS;
                 if (!isTopmost && internalCrossings > 0) {
-                    // Add 1 intersection for being split by internal verticals
                     intersectionCount += 1;
-                    console.log('  -> Adding 1 intersection for horizontal split');
                 }
             }
-            
-            console.log('Total intersections:', intersectionCount);
             
             return intersectionCount;
         }
@@ -1325,22 +1338,14 @@ if (showHeightDimension) {
         
         const intersections = countIntersections(horizontalSegs, verticalSegs);
         
-        console.log('=== CUT COUNTING DEBUG ===');
-        console.log('Edge cuts:', edgeCuts);
-        console.log('Horizontal segments:', horizontalSegs.length, horizontalSegs);
-        console.log('Vertical segments:', verticalSegs.length, verticalSegs);
-        console.log('Intersections found:', intersections);
-        
         let totalCuts = edgeCuts;
         totalCuts += horizontalSegs.length;
         totalCuts += verticalSegs.length;
         totalCuts += intersections;
-        
-        console.log('Total cuts:', totalCuts);
-        console.log('========================');
 
         return totalCuts;
     }
+    
     let sumSheetArea = 0, sumInnerArea = 0, sumUsedArea = 0, sumPlacements = 0;
     
     for (const s of solution.sheets) {
