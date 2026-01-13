@@ -1079,152 +1079,268 @@ if (showHeightDimension) {
 
     const innerArea = (w, h, edge) => Math.max(0, (w - 2 * edge)) * Math.max(0, (h - 2 * edge));
 
-  function countCuts(sheet) {
-    const placements = sheet.placements;
-    if (placements.length === 0) return 0;
+    function countCuts(sheet) {
+        const placements = sheet.placements;
+        if (placements.length === 0) return 0;
 
-    const EPS = 1e-3;
-    const edgeClearance = res.edgeClearance || 0;
-    const kerf = res.kerf || 0;
-    const sheetInnerX1 = edgeClearance;
-    const sheetInnerY1 = edgeClearance;
-    const sheetInnerX2 = sheet.width - edgeClearance;
-    const sheetInnerY2 = sheet.height - edgeClearance;
+        const EPS = 1e-3;
+        const edgeClearance = res.edgeClearance || 0;
+        const kerf = res.kerf || 0;
+        const sheetInnerX1 = edgeClearance;
+        const sheetInnerY1 = edgeClearance;
+        const sheetInnerX2 = sheet.width - edgeClearance;
+        const sheetInnerY2 = sheet.height - edgeClearance;
 
-    const isOnSheetEdge = (coord, sheetMin, sheetMax) => {
-        return Math.abs(coord - sheetMin) < EPS || Math.abs(coord - sheetMax) < EPS;
-    };
+        const isOnSheetEdge = (coord, sheetMin, sheetMax) => {
+            return Math.abs(coord - sheetMin) < EPS || Math.abs(coord - sheetMax) < EPS;
+        };
 
-    const horizontalCuts = new Map();
-    const verticalCuts = new Map();
+        const horizontalCuts = new Map();
+        const verticalCuts = new Map();
 
-    let edgeCuts = 0;
-    if (edgeClearance > EPS && placements.length > 0) {
-   
-        const hasTop = placements.some(p => Math.abs(p.y - sheetInnerY1) < EPS);
-        const hasBottom = placements.some(p => Math.abs((p.y + p.h) - sheetInnerY2) < EPS);
-        const hasLeft = placements.some(p => Math.abs(p.x - sheetInnerX1) < EPS);
-        const hasRight = placements.some(p => Math.abs((p.x + p.w) - sheetInnerX2) < EPS);
-        
-        if (hasTop) edgeCuts++;
-        if (hasBottom) edgeCuts++;
-        if (hasLeft) edgeCuts++;
-        if (hasRight) edgeCuts++;
-    }
-
-    for (const p of placements) {
-        const x1 = p.x;
-        const y1 = p.y;
-        const x2 = p.x + p.w;
-        const y2 = p.y + p.h;
-
-        if (!isOnSheetEdge(y1, sheetInnerY1, sheetInnerY2)) {
-            const key = Math.round(y1 * 1000);
-            if (!horizontalCuts.has(key)) {
-                horizontalCuts.set(key, { y: y1, segments: [] });
-            }
-            horizontalCuts.get(key).segments.push({ x1, x2 });
-        }
-
-        if (!isOnSheetEdge(y2, sheetInnerY1, sheetInnerY2)) {
-            const key = Math.round(y2 * 1000);
-            if (!horizontalCuts.has(key)) {
-                horizontalCuts.set(key, { y: y2, segments: [] });
-            }
-            horizontalCuts.get(key).segments.push({ x1, x2 });
-        }
-
-        if (!isOnSheetEdge(x1, sheetInnerX1, sheetInnerX2)) {
-            const key = Math.round(x1 * 1000);
-            if (!verticalCuts.has(key)) {
-                verticalCuts.set(key, { x: x1, segments: [] });
-            }
-            verticalCuts.get(key).segments.push({ y1, y2 });
-        }
-
-        if (!isOnSheetEdge(x2, sheetInnerX1, sheetInnerX2)) {
-            const key = Math.round(x2 * 1000);
-            if (!verticalCuts.has(key)) {
-                verticalCuts.set(key, { x: x2, segments: [] });
-            }
-            verticalCuts.get(key).segments.push({ y1, y2 });
-        }
-    }
-
-    function countCutsWithKerfMerging(cutsMap) {
-        const sortedKeys = Array.from(cutsMap.keys()).sort((a, b) => a - b);
-        let totalCuts = 0;
-        let i = 0;
-        
-        while (i < sortedKeys.length) {
-            const currentKey = sortedKeys[i];
-            const currentCut = cutsMap.get(currentKey);
-            let allSegments = [...currentCut.segments];
+        let edgeCuts = 0;
+        if (edgeClearance > EPS && placements.length > 0) {
+            const hasTop = placements.some(p => Math.abs(p.y - sheetInnerY1) < EPS);
+            const hasBottom = placements.some(p => Math.abs((p.y + p.h) - sheetInnerY2) < EPS);
+            const hasLeft = placements.some(p => Math.abs(p.x - sheetInnerX1) < EPS);
+            const hasRight = placements.some(p => Math.abs((p.x + p.w) - sheetInnerX2) < EPS);
             
-            let j = i + 1;
-            while (j < sortedKeys.length) {
-                const nextKey = sortedKeys[j];
-                const nextCut = cutsMap.get(nextKey);
-                const currentVal = currentCut.y !== undefined ? currentCut.y : currentCut.x;
-                const nextVal = nextCut.y !== undefined ? nextCut.y : nextCut.x;
+            if (hasTop) edgeCuts++;
+            if (hasBottom) edgeCuts++;
+            if (hasLeft) edgeCuts++;
+            if (hasRight) edgeCuts++;
+        }
+
+        for (const p of placements) {
+            const x1 = p.x;
+            const y1 = p.y;
+            const x2 = p.x + p.w;
+            const y2 = p.y + p.h;
+
+            if (!isOnSheetEdge(y1, sheetInnerY1, sheetInnerY2)) {
+                const key = Math.round(y1 * 1000);
+                if (!horizontalCuts.has(key)) {
+                    horizontalCuts.set(key, { y: y1, segments: [] });
+                }
+                horizontalCuts.get(key).segments.push({ x1, x2 });
+            }
+
+            if (!isOnSheetEdge(y2, sheetInnerY1, sheetInnerY2)) {
+                const key = Math.round(y2 * 1000);
+                if (!horizontalCuts.has(key)) {
+                    horizontalCuts.set(key, { y: y2, segments: [] });
+                }
+                horizontalCuts.get(key).segments.push({ x1, x2 });
+            }
+
+            if (!isOnSheetEdge(x1, sheetInnerX1, sheetInnerX2)) {
+                const key = Math.round(x1 * 1000);
+                if (!verticalCuts.has(key)) {
+                    verticalCuts.set(key, { x: x1, segments: [] });
+                }
+                verticalCuts.get(key).segments.push({ y1, y2 });
+            }
+
+            if (!isOnSheetEdge(x2, sheetInnerX1, sheetInnerX2)) {
+                const key = Math.round(x2 * 1000);
+                if (!verticalCuts.has(key)) {
+                    verticalCuts.set(key, { x: x2, segments: [] });
+                }
+                verticalCuts.get(key).segments.push({ y1, y2 });
+            }
+        }
+
+        function countCutsWithKerfMerging(cutsMap, isHorizontal) {
+            const sortedKeys = Array.from(cutsMap.keys()).sort((a, b) => a - b);
+            let segments = [];
+            let i = 0;
+            
+            while (i < sortedKeys.length) {
+                const currentKey = sortedKeys[i];
+                const currentCut = cutsMap.get(currentKey);
+                let allSegments = [...currentCut.segments];
                 
-                if (Math.abs(nextVal - currentVal) <= kerf + EPS) {
-                    allSegments.push(...nextCut.segments);
-                    j++;
+                let j = i + 1;
+                while (j < sortedKeys.length) {
+                    const nextKey = sortedKeys[j];
+                    const nextCut = cutsMap.get(nextKey);
+                    const currentVal = currentCut.y !== undefined ? currentCut.y : currentCut.x;
+                    const nextVal = nextCut.y !== undefined ? nextCut.y : nextCut.x;
+                    
+                    if (Math.abs(nextVal - currentVal) <= kerf + EPS) {
+                        allSegments.push(...nextCut.segments);
+                        j++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                const mergedSegments = mergeOverlappingSegments(allSegments);
+                const coord = currentCut.y !== undefined ? currentCut.y : currentCut.x;
+                
+                for (const seg of mergedSegments) {
+                    segments.push({
+                        coord,
+                        start: seg.x1 !== undefined ? seg.x1 : seg.y1,
+                        end: seg.x2 !== undefined ? seg.x2 : seg.y2,
+                        isHorizontal
+                    });
+                }
+                
+                i = j;
+            }
+            
+            return segments;
+        }
+
+        function mergeOverlappingSegments(segments) {
+            if (segments.length === 0) return [];
+            
+            segments.sort((a, b) => {
+                const aStart = a.x1 !== undefined ? a.x1 : a.y1;
+                const bStart = b.x1 !== undefined ? b.x1 : b.y1;
+                return aStart - bStart;
+            });
+
+            const merged = [];
+            let current = { ...segments[0] };
+
+            for (let i = 1; i < segments.length; i++) {
+                const seg = segments[i];
+                const currentEnd = current.x2 !== undefined ? current.x2 : current.y2;
+                const segStart = seg.x1 !== undefined ? seg.x1 : seg.y1;
+                const segEnd = seg.x2 !== undefined ? seg.x2 : seg.y2;
+
+                if (segStart <= currentEnd + kerf + EPS) {
+                    if (current.x2 !== undefined) {
+                        current.x2 = Math.max(currentEnd, segEnd);
+                    } else {
+                        current.y2 = Math.max(currentEnd, segEnd);
+                    }
                 } else {
-                    break;
+                    merged.push(current);
+                    current = { ...seg };
+                }
+            }
+            merged.push(current);
+            
+            return merged;
+        }
+
+        function countIntersections(horizontalSegs, verticalSegs) {
+            console.log('Sheet inner bounds: Y1=' + sheetInnerY1 + ' Y2=' + sheetInnerY2 + ' X1=' + sheetInnerX1 + ' X2=' + sheetInnerX2);
+            console.log('EPS=' + EPS);
+            
+            // Find the leftmost and rightmost vertical cuts
+            let minVerticalX = Infinity;
+            let maxVerticalX = -Infinity;
+            for (const v of verticalSegs) {
+                minVerticalX = Math.min(minVerticalX, v.coord);
+                maxVerticalX = Math.max(maxVerticalX, v.coord);
+            }
+            
+            // Find the topmost and bottommost horizontal cuts
+            let minHorizontalY = Infinity;
+            let maxHorizontalY = -Infinity;
+            for (const h of horizontalSegs) {
+                minHorizontalY = Math.min(minHorizontalY, h.coord);
+                maxHorizontalY = Math.max(maxHorizontalY, h.coord);
+            }
+            
+            let intersectionCount = 0;
+            
+            // Check each vertical cut
+            for (const v of verticalSegs) {
+                const isAtBoundary = Math.abs(v.coord - minVerticalX) < EPS || 
+                                     Math.abs(v.coord - maxVerticalX) < EPS;
+                const touchesTopExtent = Math.abs(v.start - sheetInnerY1) < EPS || 
+                                         (horizontalSegs.length > 0 && Math.abs(v.start - minHorizontalY) < EPS);
+                const touchesBottomExtent = Math.abs(v.end - sheetInnerY2) < EPS || 
+                                           (horizontalSegs.length > 0 && Math.abs(v.end - maxHorizontalY) < EPS);
+                
+                const isVerticalContinuous = isAtBoundary && touchesTopExtent && touchesBottomExtent;
+                
+                // Count how many horizontal cuts this vertical cut crosses
+                let crossingCount = 0;
+                for (const h of horizontalSegs) {
+                    const hIntersectsV = v.coord >= h.start - EPS && v.coord <= h.end + EPS;
+                    const vIntersectsH = h.coord >= v.start - EPS && h.coord <= v.end + EPS;
+                    
+                    if (hIntersectsV && vIntersectsH) {
+                        crossingCount++;
+                    }
+                }
+                
+                console.log('Vertical at x=' + v.coord + ' | atBoundary=' + isAtBoundary + 
+                           ' | continuous=' + isVerticalContinuous + ' | crossings=' + crossingCount);
+                
+                // If not continuous and crosses multiple horizontal cuts, add (crossings - 1) intersections
+                if (!isVerticalContinuous && crossingCount >= 2) {
+                    const addedIntersections = crossingCount - 1;
+                    intersectionCount += addedIntersections;
+                    console.log('  -> Adding ' + addedIntersections + ' intersections');
                 }
             }
             
-            const mergedSegments = mergeOverlappingSegments(allSegments);
-            totalCuts += mergedSegments.length;
+            // Now check horizontal cuts for intersections
+            for (const h of horizontalSegs) {
+                const isAtBoundary = Math.abs(h.coord - minHorizontalY) < EPS || 
+                                     Math.abs(h.coord - maxHorizontalY) < EPS;
+                
+                // Count how many INTERNAL vertical cuts this horizontal cut crosses
+                let internalCrossings = 0;
+                for (const v of verticalSegs) {
+                    const hIntersectsV = v.coord >= h.start - EPS && v.coord <= h.end + EPS;
+                    const vIntersectsH = h.coord >= v.start - EPS && h.coord <= v.end + EPS;
+                    
+                    if (hIntersectsV && vIntersectsH) {
+                        // Check if this is an internal vertical cut
+                        const isVerticalAtBoundary = Math.abs(v.coord - minVerticalX) < EPS || 
+                                                     Math.abs(v.coord - maxVerticalX) < EPS;
+                        if (!isVerticalAtBoundary) {
+                            internalCrossings++;
+                        }
+                    }
+                }
+                
+                console.log('Horizontal at y=' + h.coord + ' | atBoundary=' + isAtBoundary + 
+                           ' | internal crossings=' + internalCrossings);
+                
+                // If this horizontal is NOT the topmost, it might add intersections
+                const isTopmost = Math.abs(h.coord - minHorizontalY) < EPS;
+                if (!isTopmost && internalCrossings > 0) {
+                    // Add 1 intersection for being split by internal verticals
+                    intersectionCount += 1;
+                    console.log('  -> Adding 1 intersection for horizontal split');
+                }
+            }
             
-            i = j;
+            console.log('Total intersections:', intersectionCount);
+            
+            return intersectionCount;
         }
+
+        const horizontalSegs = countCutsWithKerfMerging(horizontalCuts, true);
+        const verticalSegs = countCutsWithKerfMerging(verticalCuts, false);
         
+        const intersections = countIntersections(horizontalSegs, verticalSegs);
+        
+        console.log('=== CUT COUNTING DEBUG ===');
+        console.log('Edge cuts:', edgeCuts);
+        console.log('Horizontal segments:', horizontalSegs.length, horizontalSegs);
+        console.log('Vertical segments:', verticalSegs.length, verticalSegs);
+        console.log('Intersections found:', intersections);
+        
+        let totalCuts = edgeCuts;
+        totalCuts += horizontalSegs.length;
+        totalCuts += verticalSegs.length;
+        totalCuts += intersections;
+        
+        console.log('Total cuts:', totalCuts);
+        console.log('========================');
+
         return totalCuts;
     }
-
-    function mergeOverlappingSegments(segments) {
-        if (segments.length === 0) return [];
-        
-        segments.sort((a, b) => {
-            const aStart = a.x1 !== undefined ? a.x1 : a.y1;
-            const bStart = b.x1 !== undefined ? b.x1 : b.y1;
-            return aStart - bStart;
-        });
-
-        const merged = [];
-        let current = { ...segments[0] };
-
-        for (let i = 1; i < segments.length; i++) {
-            const seg = segments[i];
-            const currentEnd = current.x2 !== undefined ? current.x2 : current.y2;
-            const segStart = seg.x1 !== undefined ? seg.x1 : seg.y1;
-            const segEnd = seg.x2 !== undefined ? seg.x2 : seg.y2;
-
-            if (segStart <= currentEnd + kerf + EPS) {
-                if (current.x2 !== undefined) {
-                    current.x2 = Math.max(currentEnd, segEnd);
-                } else {
-                    current.y2 = Math.max(currentEnd, segEnd);
-                }
-            } else {
-                merged.push(current);
-                current = { ...seg };
-            }
-        }
-        merged.push(current);
-        
-        return merged;
-    }
-
-    let totalCuts = edgeCuts;
-    totalCuts += countCutsWithKerfMerging(horizontalCuts);
-    totalCuts += countCutsWithKerfMerging(verticalCuts);
-
-    return totalCuts;
-}
     let sumSheetArea = 0, sumInnerArea = 0, sumUsedArea = 0, sumPlacements = 0;
     
     for (const s of solution.sheets) {
