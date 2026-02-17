@@ -1,5 +1,3 @@
-<script>
-
 const productsMap = {
     "sheet-materials": {
         "name": "Sheet Materials",
@@ -169,18 +167,21 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
 });
 
-    document.addEventListener("DOMContentLoaded", () => {
-    const readMoreBtn = document.getElementById("readMoreBtn");
-    const fadeContainer = document.querySelector(".introduction-fade-container");
-
-    if (readMoreBtn && fadeContainer) {
-      readMoreBtn.addEventListener("click", () => {
-      fadeContainer.classList.toggle("expanded");
-      readMoreBtn.textContent = fadeContainer.classList.contains("expanded")
-        ? "Read Less"
-        : "Read More";
-     });
-     }
-   });
-
-</script>
+document.addEventListener("DOMContentLoaded", () => {
+  const container = document.querySelector(".intro-container");
+  const btn = document.getElementById("readMoreBtn");
+  if (!container || !btn) return;
+  btn.setAttribute("aria-expanded", "false");
+  btn.addEventListener("click", () => {
+    const isExpanded = container.classList.toggle("expanded");
+    btn.textContent = isExpanded ? "Read Less" : "Read More";
+    btn.setAttribute("aria-expanded", isExpanded);
+    if (isExpanded) {
+      setTimeout(() => {
+        container.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 300);
+    } else {
+      container.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
+});
